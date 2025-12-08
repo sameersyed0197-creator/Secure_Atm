@@ -545,6 +545,10 @@
 import express from 'express'
 import User from '../models/User.js'
 import auth from '../middleware/auth.js'
+// ⬆ at the top with other imports
+import { isoUint8Array } from '@simplewebauthn/server/helpers'
+
+
 import { compareFaces } from '../services/geminiService.js'
 import { 
   generateAuthenticationOptions, 
@@ -698,17 +702,19 @@ router.get('/fingerprint-register-options', auth, async (req, res) => {
 
     const rpName = 'SecureATM'
     const rpID = process.env.RP_ID || 'localhost'
-    const userID = user._id.toString()
+
+    // 🔥 FIX: userID must be Uint8Array, not string
+    const userID = isoUint8Array.fromUTF8String(user._id.toString())
 
     const options = await generateRegistrationOptions({
       rpName,
       rpID,
-      userID,
+      userID,                 // now correct type
       userName: user.email,
       timeout: 60000,
       attestationType: 'none',
       authenticatorSelection: {
-        authenticatorAttachment: 'platform', // For built-in biometrics
+        authenticatorAttachment: 'platform',
         userVerification: 'required',
         residentKey: 'preferred'
       },
@@ -717,10 +723,9 @@ router.get('/fingerprint-register-options', auth, async (req, res) => {
         type: 'public-key',
         transports: dev.transports
       })) || [],
-      supportedAlgorithmIDs: [-7, -257] // ES256 and RS256
+      supportedAlgorithmIDs: [-7, -257],
     })
 
-    // Store challenge in session
     req.session.currentChallenge = options.challenge
 
     console.log('✅ Registration options generated for:', user.email)
