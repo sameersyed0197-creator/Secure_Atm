@@ -1255,8 +1255,6 @@ router.post('/fingerprint-register-verify', auth, async (req, res) => {
     })
   }
 })
-
-
 // ✅ GET fingerprint authentication options (WebAuthn)
 router.get('/fingerprint-options', auth, async (req, res) => {
   try {
@@ -1276,7 +1274,8 @@ router.get('/fingerprint-options', auth, async (req, res) => {
     const options = await generateAuthenticationOptions({
       timeout: 60000,
       allowCredentials: user.biometricDevices.map((dev) => ({
-        id: dev.credentialID,
+        // ✅ convert Buffer → base64url string
+        id: isoBase64URL.fromBuffer(dev.credentialID),
         type: 'public-key',
         transports: dev.transports || [],
       })),
@@ -1294,6 +1293,7 @@ router.get('/fingerprint-options', auth, async (req, res) => {
     res.status(500).json({ message: 'Failed to generate authentication options' })
   }
 })
+
 
 // ✅ POST verify fingerprint authentication (WebAuthn)
 router.post('/verify-fingerprint', auth, async (req, res) => {
