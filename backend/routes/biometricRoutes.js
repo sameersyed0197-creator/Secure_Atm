@@ -966,10 +966,6 @@
 
 
 
-
-
-
-
 // routes/biometricRoutes.js - COMPLETE WITH GEMINI + WEBAUTHN
 import express from 'express'
 import User from '../models/User.js'
@@ -1196,18 +1192,26 @@ router.post('/fingerprint-register-verify', auth, async (req, res) => {
     })
 
     if (verification.verified && verification.registrationInfo) {
-      const { credentialPublicKey, credentialID, counter } = verification.registrationInfo
+      const { registrationInfo } = verification
+      const { credential } = registrationInfo
+      const { id, publicKey, counter } = credential
 
-      // Add new device to user's biometric devices
+      // Ensure biometricDevices array exists
       if (!user.biometricDevices) {
         user.biometricDevices = []
       }
 
       user.biometricDevices.push({
-        credentialID: Buffer.from(credentialID),
-        credentialPublicKey: Buffer.from(credentialPublicKey),
+        // id & publicKey are usually Buffers; Buffer.from is safe either way
+        credentialID: Buffer.isBuffer(id) ? id : Buffer.from(id),
+        credentialPublicKey: Buffer.isBuffer(publicKey)
+          ? publicKey
+          : Buffer.from(publicKey),
         counter,
-        transports: registrationResult.response.transports || [],
+        transports:
+          registrationResult?.response?.transports ||
+          registrationResult?.response?.response?.transports ||
+          [],
         deviceName: deviceName || 'Biometric Device',
         registeredAt: new Date(),
       })
@@ -1217,7 +1221,7 @@ router.post('/fingerprint-register-verify', auth, async (req, res) => {
       await user.save()
 
       console.log('✅ Biometric device registered for:', user.email)
-      res.json({
+      return res.json({
         success: true,
         message: 'Biometric device registered successfully',
       })
@@ -1226,7 +1230,7 @@ router.post('/fingerprint-register-verify', auth, async (req, res) => {
       user.webauthnChallenge = null
       await user.save()
 
-      res.status(400).json({
+      return res.status(400).json({
         success: false,
         message: 'Registration verification failed',
       })
@@ -1245,12 +1249,13 @@ router.post('/fingerprint-register-verify', auth, async (req, res) => {
       console.error('Error clearing challenge after registration error:', e)
     }
 
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: 'Registration failed: ' + error.message,
     })
   }
 })
+
 
 // ✅ GET fingerprint authentication options (WebAuthn)
 router.get('/fingerprint-options', auth, async (req, res) => {
@@ -1421,3 +1426,9 @@ router.post('/register-fingerprint', auth, async (req, res) => {
 })
 
 export default router
+
+
+
+
+
+
