@@ -1,4 +1,4 @@
- // src/pages/SettingsPage.jsx - FINAL BACKEND-SYNCED VERSION
+// src/pages/SettingsPage.jsx - COMPLETE FIXED VERSION
 import React, { useEffect, useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import api from '../services/api'
@@ -44,6 +44,7 @@ function SettingsPage() {
   const [showCamera, setShowCamera] = useState(false)
   const [isCapturing, setIsCapturing] = useState(false)
 
+  // Cleanup camera on unmount
   useEffect(() => {
     return () => {
       if (streamRef.current) {
@@ -52,6 +53,7 @@ function SettingsPage() {
     }
   }, [])
 
+  // Load user data on mount
   useEffect(() => {
     const load = async () => {
       const token = localStorage.getItem('token')
@@ -59,30 +61,34 @@ function SettingsPage() {
 
       const headers = { Authorization: `Bearer ${token}` }
 
-      const res = await api.get('/settings/me', { headers })
-      setProfile({
-        fullName: res.data.fullName || '',
-        email: res.data.email || '',
-        phone: res.data.phone || '',
-        city: res.data.city || '',
-        address: res.data.address || '',
-      })
+      try {
+        const res = await api.get('/settings/me', { headers })
+        setProfile({
+          fullName: res.data.fullName || '',
+          email: res.data.email || '',
+          phone: res.data.phone || '',
+          city: res.data.city || '',
+          address: res.data.address || '',
+        })
 
-      setThreshold(
-        res.data.biometricThreshold ??
-        res.data.securitySettings?.biometricThreshold ??
-        5000
-      )
+        setThreshold(
+          res.data.biometricThreshold ??
+          res.data.securitySettings?.biometricThreshold ??
+          5000
+        )
 
-      const bioRes = await api.get('/biometric/status', { headers })
-
-    setBiometricStatus({
-  faceRegistered: Boolean(bioRes.data.faceRegistered),
-  fingerprintRegistered: Boolean(bioRes.data.fingerprintRegistered), // ✅ CORRECT
-})
+        const bioRes = await api.get('/biometric/status', { headers })
+        setBiometricStatus({
+          faceRegistered: Boolean(bioRes.data.faceRegistered),
+          fingerprintRegistered: Boolean(bioRes.data.fingerprintRegistered),
+        })
+      } catch (err) {
+        console.error('Failed to load settings:', err)
+        setError('Failed to load settings')
+      }
     }
 
-    load().catch(console.error)
+    load()
   }, [])
 
   const withAuth = () => {
@@ -90,174 +96,416 @@ function SettingsPage() {
     return token ? { Authorization: `Bearer ${token}` } : null
   }
 
-  // ---------------- FACE (GEMINI) ----------------
+  // ============================================================
+  // ✅ FIXED: FACE RECOGNITION (GEMINI)
+  // ============================================================
+
   const startCamera = async () => {
-    setShowCamera(true)
-    setIsCapturing(true)
+    try {
+      setShowCamera(true)
+      setIsCapturing(true)
+      setError('')
+      setMessage('')
 
-    const stream = await navigator.mediaDevices.getUserMedia({ video: true })
-    streamRef.current = stream
-    videoRef.current.srcObject = stream
-
-    setTimeout(captureFacePhoto, 2000)
+      // Request camera access
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: { 
+          width: { ideal: 640 },
+          height: { ideal: 480 },
+          facingMode: 'user' 
+        } 
+      })
+      
+      streamRef.current = stream
+      
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream
+        
+        // ✅ CRITICAL FIX: Wait for video to actually load and start playing
+        await new Promise((resolve, reject) => {
+          videoRef.current.onloadedmetadata = () => {
+            videoRef.current.play()
+              .then(resolve)
+              .catch(reject)
+          }
+          
+          // Timeout after 10 seconds
+          setTimeout(() => reject(new Error('Video loading timeout')), 10000)
+        })
+        
+        // ✅ Give user 3 seconds to position face
+        setTimeout(() => {
+          if (streamRef.current) {
+            captureFacePhoto()
+          }
+        }, 3000)
+      }
+    } catch (err) {
+      console.error('Camera error:', err)
+      
+      // User-friendly error messages
+      if (err.name === 'NotAllowedError') {
+        setError('Camera access denied. Please allow camera permissions.')
+      } else if (err.name === 'NotFoundError') {
+        setError('No camera found on this device.')
+      } else {
+        setError('Failed to start camera: ' + err.message)
+      }
+      
+      setShowCamera(false)
+      setIsCapturing(false)
+      
+      // Stop any active streams
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(t => t.stop())
+        streamRef.current = null
+      }
+    }
   }
 
   const captureFacePhoto = () => {
-    const canvas = canvasRef.current
-    const ctx = canvas.getContext('2d')
-    canvas.width = 320
-    canvas.height = 240
-    ctx.drawImage(videoRef.current, 0, 0, 320, 240)
+    try {
+      const canvas = canvasRef.current
+      const video = videoRef.current
+      
+      if (!canvas || !video) {
+        setError('Camera not ready')
+        return
+      }
 
-    setCapturedFace(canvas.toDataURL('image/jpeg', 0.7))
+      // ✅ Check if video has loaded enough data
+      if (video.readyState < video.HAVE_ENOUGH_DATA) {
+        setError('Video not ready - please try again')
+        setShowCamera(false)
+        setIsCapturing(false)
+        return
+      }
+      
+      const ctx = canvas.getContext('2d')
+      canvas.width = 320
+      canvas.height = 240
+      
+      // Draw the current video frame
+      ctx.drawImage(video, 0, 0, 320, 240)
+      
+      const imageData = canvas.toDataURL('image/jpeg', 0.7)
+      
+      // ✅ CRITICAL FIX: Validate the captured image isn't blank
+      if (!imageData || imageData.length < 5000) {
+        setError('Captured image is blank or too small - please try again')
+        setShowCamera(false)
+        setIsCapturing(false)
+        return
+      }
+      
+      // ✅ Check if it's a valid base64 image
+      if (!imageData.startsWith('data:image/')) {
+        setError('Invalid image format captured')
+        setShowCamera(false)
+        setIsCapturing(false)
+        return
+      }
+      
+      setCapturedFace(imageData)
+      console.log('✅ Face captured successfully, size:', imageData.length)
 
-    streamRef.current.getTracks().forEach(t => t.stop())
-    setShowCamera(false)
-    setIsCapturing(false)
+      // Stop camera
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(t => t.stop())
+        streamRef.current = null
+      }
+      
+      setShowCamera(false)
+      setIsCapturing(false)
+    } catch (err) {
+      console.error('Capture error:', err)
+      setError('Failed to capture photo: ' + err.message)
+      setShowCamera(false)
+      setIsCapturing(false)
+    }
   }
 
   const registerFace = async () => {
     const headers = withAuth()
-    if (!headers || !capturedFace) return
+    if (!headers) {
+      setError('Not authenticated - please login again')
+      return
+    }
+    
+    if (!capturedFace) {
+      setError('No face data captured - please capture your face first')
+      return
+    }
 
-    await api.post('/biometric/register-face', { faceData: capturedFace }, { headers })
-    setBiometricStatus(s => ({ ...s, faceRegistered: true }))
-    setMessage('Face registered successfully')
+    try {
+      setLoading(true)
+      setError('')
+      setMessage('')
+      
+      console.log('📤 Uploading face data, size:', capturedFace.length)
+      
+      const response = await api.post(
+        '/biometric/register-face', 
+        { faceData: capturedFace }, 
+        { headers }
+      )
+      
+      console.log('✅ Face registration response:', response.data)
+      
+      setBiometricStatus(s => ({ ...s, faceRegistered: true }))
+      setMessage('✅ Face registered successfully!')
+      
+    } catch (err) {
+      console.error('Face registration error:', err)
+      
+      // Backend validation errors
+      if (err.response?.status === 400) {
+        setError(err.response.data.message || 'Invalid face data')
+      } else if (err.response?.status === 401) {
+        setError('Session expired - please login again')
+      } else {
+        setError('Failed to register face: ' + (err.response?.data?.message || err.message))
+      }
+    } finally {
+      setLoading(false)
+    }
   }
 
-  // ---------------- FINGERPRINT (WEBAUTHN) ----------------
+  const reuploadFace = () => {
+    setCapturedFace(null)
+    setShowCamera(false)
+    setError('')
+    setMessage('')
+    startCamera()
+  }
+
+  const cancelCamera = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop())
+      streamRef.current = null
+    }
+    setShowCamera(false)
+    setIsCapturing(false)
+    setError('')
+  }
+
+  // ============================================================
+  // ✅ FIXED: FINGERPRINT (WEBAUTHN)
+  // ============================================================
+
   const registerFingerprint = async () => {
     const headers = withAuth()
-    if (!headers || !browserSupportsWebAuthn()) return
+    if (!headers) {
+      setError('Not authenticated - please login again')
+      return
+    }
+    
+    if (!browserSupportsWebAuthn()) {
+      setError('Your browser does not support fingerprint authentication')
+      return
+    }
 
-    const opt = await api.get('/biometric/register-options', { headers })
-    const reg = await startRegistration(opt.data)
-
-    await api.post('/biometric/register-verify', { registrationResult: reg }, { headers })
-
-    setBiometricStatus(s => ({ ...s, fingerprintRegistered: true }))
-    setMessage('Fingerprint registered successfully')
+    try {
+      setLoading(true)
+      setError('')
+      setMessage('')
+      
+      console.log('📱 Requesting fingerprint registration options...')
+      
+      // Get registration options from backend
+      const optResponse = await api.get('/biometric/register-options', { headers })
+      console.log('✅ Got registration options:', optResponse.data)
+      
+      // Start browser fingerprint registration
+      const registrationResult = await startRegistration(optResponse.data)
+      console.log('✅ Browser registration completed')
+      
+      // Verify registration on backend
+      const verifyResponse = await api.post(
+        '/biometric/register-verify', 
+        { registrationResult }, 
+        { headers }
+      )
+      
+      console.log('✅ Fingerprint registration verified:', verifyResponse.data)
+      
+      setBiometricStatus(s => ({ ...s, fingerprintRegistered: true }))
+      
+      // Show backup status if available
+      if (verifyResponse.data.backedUp) {
+        setMessage('✅ Fingerprint registered & synced to your account!')
+      } else {
+        setMessage('✅ Fingerprint registered successfully!')
+      }
+      
+    } catch (err) {
+      console.error('Fingerprint registration error:', err)
+      
+      // User cancelled
+      if (err.name === 'NotAllowedError') {
+        setError('Fingerprint registration cancelled')
+      } 
+      // No biometric hardware
+      else if (err.name === 'NotSupportedError') {
+        setError('Your device does not support fingerprint authentication')
+      }
+      // Backend errors
+      else if (err.response?.data?.message) {
+        setError(err.response.data.message)
+      }
+      // Network or other errors
+      else {
+        setError('Failed to register fingerprint: ' + err.message)
+      }
+    } finally {
+      setLoading(false)
+    }
   }
 
-  // ---------------- THRESHOLD ----------------
+  // ============================================================
+  // ✅ FIXED: THRESHOLD UPDATE
+  // ============================================================
+
   const handleThresholdUpdate = async () => {
+    const headers = withAuth()
+    if (!headers) {
+      setError('Not authenticated')
+      return
+    }
+    
+    // Validate threshold
+    if (threshold < 1000 || threshold > 100000) {
+      setError('Threshold must be between ₹1,000 and ₹1,00,000')
+      return
+    }
+
+    try {
+      setLoading(true)
+      setError('')
+      setMessage('')
+      
+      await api.put(
+        '/settings/biometric-threshold', 
+        { biometricThreshold: threshold }, 
+        { headers }
+      )
+      
+      setMessage('✅ Biometric threshold updated to ₹' + threshold.toLocaleString('en-IN'))
+    } catch (err) {
+      console.error('Threshold update error:', err)
+      setError(err.response?.data?.message || 'Failed to update threshold')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // ============================================================
+  // PROFILE UPDATE
+  // ============================================================
+
+  const handleSaveProfile = async (e) => {
+    e.preventDefault()
+    setError('')
+    setMessage('')
+
     const headers = withAuth()
     if (!headers) return
 
-    await api.put('/settings/biometric-threshold', { biometricThreshold: threshold }, { headers })
-    setMessage('Biometric threshold updated')
+    try {
+      setLoading(true)
+      await api.put(
+        '/settings/profile',
+        {
+          fullName: profile.fullName,
+          phone: profile.phone,
+          city: profile.city,
+          address: profile.address,
+        },
+        { headers }
+      )
+      setMessage('✅ Profile updated successfully.')
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to update profile.')
+    } finally {
+      setLoading(false)
+    }
   }
 
-  // ---------------- CAMERA HELPERS ----------------
-const reuploadFace = () => {
-  setCapturedFace(null)
-  setShowCamera(false)
-  startCamera()
-}
+  // ============================================================
+  // PASSWORD UPDATE
+  // ============================================================
 
-const cancelCamera = () => {
-  if (streamRef.current) {
-    streamRef.current.getTracks().forEach(track => track.stop())
-    streamRef.current = null
-  }
-  setShowCamera(false)
-  setIsCapturing(false)
-}
+  const handlePasswordUpdate = async (e) => {
+    e.preventDefault()
+    setError('')
+    setMessage('')
 
-// ---------------- PROFILE ----------------
-const handleSaveProfile = async (e) => {
-  e.preventDefault()
-  setError('')
-  setMessage('')
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      setError('Passwords do not match')
+      return
+    }
 
-  const headers = withAuth()
-  if (!headers) return
+    const headers = withAuth()
+    if (!headers) return
 
-  try {
-    setLoading(true)
-    await api.put(
-      '/settings/profile',
-      {
-        fullName: profile.fullName,
-        phone: profile.phone,
-        city: profile.city,
-        address: profile.address,
-      },
-      { headers }
-    )
-    setMessage('Profile updated successfully.')
-  } catch (err) {
-    setError(err.response?.data?.message || 'Failed to update profile.')
-  } finally {
-    setLoading(false)
-  }
-}
-
-// ---------------- PASSWORD ----------------
-const handlePasswordUpdate = async (e) => {
-  e.preventDefault()
-  setError('')
-  setMessage('')
-
-  if (passwordForm.newPassword !== passwordForm.confirmPassword) {
-    setError('Passwords do not match')
-    return
+    try {
+      setLoading(true)
+      await api.put(
+        '/settings/password',
+        {
+          currentPassword: passwordForm.currentPassword,
+          newPassword: passwordForm.newPassword,
+        },
+        { headers }
+      )
+      setMessage('✅ Password updated successfully')
+      setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' })
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to update password')
+    } finally {
+      setLoading(false)
+    }
   }
 
-  const headers = withAuth()
-  if (!headers) return
+  // ============================================================
+  // TRANSACTION PIN UPDATE
+  // ============================================================
 
-  try {
-    setLoading(true)
-    await api.put(
-      '/settings/password',
-      {
-        currentPassword: passwordForm.currentPassword,
-        newPassword: passwordForm.newPassword,
-      },
-      { headers }
-    )
-    setMessage('Password updated successfully')
-    setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' })
-  } catch (err) {
-    setError(err.response?.data?.message || 'Failed to update password')
-  } finally {
-    setLoading(false)
+  const handlePinUpdate = async (e) => {
+    e.preventDefault()
+    setError('')
+    setMessage('')
+
+    if (pinForm.newPin !== pinForm.confirmPin) {
+      setError('PINs do not match')
+      return
+    }
+
+    const headers = withAuth()
+    if (!headers) return
+
+    try {
+      setLoading(true)
+      await api.put(
+        '/settings/transaction-pin',
+        {
+          currentPin: pinForm.currentPin || null,
+          newPin: pinForm.newPin,
+        },
+        { headers }
+      )
+      setMessage('✅ Transaction PIN updated')
+      setPinForm({ currentPin: '', newPin: '', confirmPin: '' })
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to update PIN')
+    } finally {
+      setLoading(false)
+    }
   }
-}
 
-// ---------------- TRANSACTION PIN ----------------
-const handlePinUpdate = async (e) => {
-  e.preventDefault()
-  setError('')
-  setMessage('')
-
-  if (pinForm.newPin !== pinForm.confirmPin) {
-    setError('PINs do not match')
-    return
-  }
-
-  const headers = withAuth()
-  if (!headers) return
-
-  try {
-    setLoading(true)
-    await api.put(
-      '/settings/transaction-pin',
-      {
-        currentPin: pinForm.currentPin || null,
-        newPin: pinForm.newPin,
-      },
-      { headers }
-    )
-    setMessage('Transaction PIN updated')
-    setPinForm({ currentPin: '', newPin: '', confirmPin: '' })
-  } catch (err) {
-    setError(err.response?.data?.message || 'Failed to update PIN')
-  } finally {
-    setLoading(false)
-  }
-}
+  // ============================================================
+  // JSX RENDER
+  // ============================================================
 
   return (
     <div className="min-h-screen bg-[#0D0D0D] text-white">
@@ -476,7 +724,7 @@ const handlePinUpdate = async (e) => {
                     />
                     <div className="absolute bottom-0 left-0 right-0 bg-black/70 py-1 px-2">
                       <p className="text-[10px] text-white text-center">
-                        Camera will capture automatically...
+                        Camera will capture automatically in 3 seconds...
                       </p>
                     </div>
                   </div>
@@ -552,15 +800,14 @@ const handlePinUpdate = async (e) => {
         {/* Hidden canvas */}
         <canvas ref={canvasRef} className="hidden" />
 
- 
-         {/* Personal Info Section */}
-         <section className="bg-[#101010] rounded-2xl border border-dashed border-gray-800 p-4 sm:p-5 space-y-4">
-           <div className="flex items-center justify-between">
-             <h2 className="text-sm sm:text-base font-semibold">Personal Information</h2>
-             <span className="text-[11px] text-gray-500">
-               Keep this up to date for recovery and KYC.
-             </span>
-           </div>
+        {/* Personal Info Section */}
+        <section className="bg-[#101010] rounded-2xl border border-dashed border-gray-800 p-4 sm:p-5 space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm sm:text-base font-semibold">Personal Information</h2>
+            <span className="text-[11px] text-gray-500">
+              Keep this up to date for recovery and KYC.
+            </span>
+          </div>
 
           <form
             className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 text-xs sm:text-sm"
@@ -746,7 +993,6 @@ const handlePinUpdate = async (e) => {
 }
 
 export default SettingsPage
-
 
 
 
