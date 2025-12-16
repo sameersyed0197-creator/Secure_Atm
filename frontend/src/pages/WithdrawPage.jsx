@@ -865,57 +865,81 @@ function WithdrawPage() {
     setShowCamera(false)
     setIsCapturing(false)
   }
-
-  // ✅ Real fingerprint verification using WebAuthn
-  const verifyFingerprint = async () => {
-    try {
-      if (!browserSupportsWebAuthn()) {
-        setError('Biometric authentication not supported on this browser')
-        return false
-      }
-
-      setLoading(true)
-      setError('')
-
-      const token = localStorage.getItem('token')
-
-      const optionsResponse = await api.get('/biometric/fingerprint-options', {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-
-      const authResult = await startAuthentication(optionsResponse.data)
-
-      const verificationResponse = await api.post(
-        '/biometric/verify-fingerprint',
-        { authResult },
-        { headers: { Authorization: `Bearer ${token}` } }
-      )
-
-      setLoading(false)
-
-      if (verificationResponse.data.verified) {
-        setBiometricVerified(true)
-        setBiometricToken(verificationResponse.data.biometricToken)
-        return true
-      } else {
-        setError('Biometric verification failed. Please try again.')
-        return false
-      }
-    } catch (err) {
-      console.error('Fingerprint error:', err)
-      setLoading(false)
-
-      if (err.name === 'NotAllowedError' || err.name === 'AbortError') {
-        setError('Biometric authentication was cancelled or denied')
-      } else if (err.response?.data?.message) {
-        setError(err.response.data.message)
-      } else {
-        setError('Biometric authentication failed. Please try again.')
-      }
-
+// ✅ Real fingerprint verification using WebAuthn
+const verifyFingerprint = async () => {
+  try {
+    console.log('🔐 [1/4] Checking WebAuthn support...')
+    
+    if (!browserSupportsWebAuthn()) {
+      setError('Biometric authentication not supported on this browser')
       return false
     }
+
+    console.log('✅ WebAuthn is supported')
+
+    setLoading(true)
+    setError('')
+
+    const token = localStorage.getItem('token')
+
+    console.log('🔐 [2/4] Fetching authentication options from backend...')
+    
+    const optionsResponse = await api.get('/biometric/fingerprint-options', {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+
+    console.log('✅ Got options from backend:', optionsResponse.data)
+    console.log('🔐 [3/4] Triggering native biometric prompt...')
+    console.log('⚠️ NATIVE POPUP SHOULD APPEAR NOW!')
+
+    // This line should trigger the native fingerprint/Face ID prompt
+    const authResult = await startAuthentication(optionsResponse.data)
+
+    console.log('✅ User completed biometric! Result:', authResult)
+    console.log('🔐 [4/4] Sending verification to backend...')
+
+    const verificationResponse = await api.post(
+      '/biometric/verify-fingerprint',
+      { authResult },
+      { headers: { Authorization: `Bearer ${token}` } }
+    )
+
+    console.log('✅ Backend verification response:', verificationResponse.data)
+
+    setLoading(false)
+
+    if (verificationResponse.data.verified) {
+      console.log('🎉 Fingerprint verified successfully!')
+      setBiometricVerified(true)
+      setBiometricToken(verificationResponse.data.biometricToken)
+      return true
+    } else {
+      setError('Biometric verification failed. Please try again.')
+      return false
+    }
+  } catch (err) {
+    console.error('❌ Fingerprint verification error:', err)
+    console.error('Error name:', err.name)
+    console.error('Error message:', err.message)
+    console.error('Full error:', err)
+    
+    setLoading(false)
+
+    if (err.name === 'NotAllowedError') {
+      setError('Biometric authentication was cancelled')
+    } else if (err.name === 'AbortError') {
+      setError('Biometric authentication was denied or timed out')
+    } else if (err.name === 'NotSupportedError') {
+      setError('Biometric authentication not supported on this device')
+    } else if (err.response?.data?.message) {
+      setError(err.response.data.message)
+    } else {
+      setError(`Biometric authentication failed: ${err.message}`)
+    }
+
+    return false
   }
+}
 
   // ✅ Process withdrawal with chosen biometric method
   const processWithdrawal = async () => {
