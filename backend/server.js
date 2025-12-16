@@ -1,4 +1,4 @@
-// server.js - DEV TUNNEL VERSION
+// server.js - PRODUCTION VERSION
 import express from 'express'
 import dotenv from 'dotenv'
 import cors from 'cors'
@@ -16,26 +16,26 @@ const app = express()
 const PORT = process.env.PORT || 5000
 
 // ---- Middlewares ----
-// ✅ CORS with dev tunnel support
+// ✅ CORS for production
 app.use(cors({
   origin: [
     'http://localhost:5173',
-    'https://zlx30n8l-5173.inc1.devtunnels.ms',  // ✅ Frontend tunnel
+    'https://secure-atm-yzh1.onrender.com',  // ✅ Your production frontend
   ],
   credentials: true
 }))
 
 app.use(express.json({ limit: '10mb' }))
 
-// ✅ SESSION MIDDLEWARE - Updated for HTTPS tunnels
+// ✅ SESSION MIDDLEWARE - Production settings
 app.use(session({
   secret: process.env.SESSION_SECRET || 'your-secret-key-change-in-production',
   resave: false,
   saveUninitialized: false,
   cookie: { 
-    secure: false,  // Keep false even for tunnels (they handle HTTPS)
+    secure: process.env.NODE_ENV === 'production',  // ✅ true in production
     httpOnly: true,
-    sameSite: 'none',  // ✅ Changed to 'none' for cross-origin tunnel access
+    sameSite: 'none',  // ✅ Required for cross-origin cookies
     maxAge: 10 * 60 * 1000 // 10 minutes
   }
 }))
@@ -53,21 +53,15 @@ mongoose
   .then(() => {
     console.log('[✔] MongoDB Connected')
     console.log('[✔] Routes loaded: /api/auth, /api/upi, /api/settings, /api/wallet, /api/biometric')
-    app.listen(PORT, '0.0.0.0', () => {  // ✅ Listen on all interfaces
-      console.log(`[🚀] Server running at http://localhost:${PORT}`)
-      console.log(`[📱] Dev Tunnel: https://zlx30n8l-5000.inc1.devtunnels.ms`)
+    app.listen(PORT, '0.0.0.0', () => {
+      console.log(`[🚀] Server running on port ${PORT}`)
+      console.log(`[🌍] Environment: ${process.env.NODE_ENV || 'development'}`)
     })
   })
   .catch((err) => {
     console.error('[❌] MongoDB Connection Error:', err.message)
     process.exit(1)
   })
-
-
-
-
-
-
 
 
 

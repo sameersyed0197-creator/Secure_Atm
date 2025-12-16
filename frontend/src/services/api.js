@@ -11,7 +11,7 @@
  import axios from 'axios'
 
 const api = axios.create({
-  baseURL: 'https://zlx30n8l-5000.inc1.devtunnels.ms/api',  // ✅ Your backend tunnel
+  baseURL: 'https://secure-atm-backend.onrender.com/api',  // ✅ Updated to production
   withCredentials: true
 })
 
