@@ -1,47 +1,67 @@
-// // import express from 'express'
-// // import dotenv from 'dotenv'
-// // import cors from 'cors'
-// // import mongoose from 'mongoose'
+// server.js - DEV TUNNEL VERSION
+import express from 'express'
+import dotenv from 'dotenv'
+import cors from 'cors'
+import mongoose from 'mongoose'
+import session from 'express-session'
+import authRoutes from './routes/auth.js'
+import upiRoutes from './routes/upiRoutes.js'
+import settingsRoutes from './routes/settingsRoutes.js'
+import walletRoutes from './routes/walletRoutes.js'
+import biometricRoutes from './routes/biometricRoutes.js'
 
-// // import authRoutes from './routes/auth.js'
-// // import upiRoutes from './routes/upiRoutes.js'
-// // import settingsRoutes from './routes/settingsRoutes.js'
-// // import walletRoutes from './routes/walletRoutes.js'
-// // import biometricRoutes from './routes/biometricRoutes.js'
+dotenv.config()
 
-// // dotenv.config()
+const app = express()
+const PORT = process.env.PORT || 5000
 
-// // const app = express()
-// // const PORT = process.env.PORT || 5000
+// ---- Middlewares ----
+// ✅ CORS with dev tunnel support
+app.use(cors({
+  origin: [
+    'http://localhost:5173',
+    'https://zlx30n8l-5173.inc1.devtunnels.ms',  // ✅ Frontend tunnel
+  ],
+  credentials: true
+}))
 
-// // // FIX: Allow big image uploads
-// // app.use(cors())
-// // app.use(express.json({ limit: "25mb" }))
-// // app.use(express.urlencoded({ extended: true, limit: "25mb" }))
+app.use(express.json({ limit: '10mb' }))
 
-// // // Health Check Route
-// // app.get("/", (req, res) => {
-// //   res.send("Secure ATM Backend Running...")
-// // })
+// ✅ SESSION MIDDLEWARE - Updated for HTTPS tunnels
+app.use(session({
+  secret: process.env.SESSION_SECRET || 'your-secret-key-change-in-production',
+  resave: false,
+  saveUninitialized: false,
+  cookie: { 
+    secure: false,  // Keep false even for tunnels (they handle HTTPS)
+    httpOnly: true,
+    sameSite: 'none',  // ✅ Changed to 'none' for cross-origin tunnel access
+    maxAge: 10 * 60 * 1000 // 10 minutes
+  }
+}))
 
-// // // API Routes
-// // app.use('/api/auth', authRoutes)
-// // app.use('/api/upi', upiRoutes)
-// // app.use('/api/settings', settingsRoutes)
-// // app.use('/api/wallet', walletRoutes)
-// // app.use('/api/biometric', biometricRoutes)
+// ---- API Routes ----
+app.use('/api/auth', authRoutes)
+app.use('/api/upi', upiRoutes)
+app.use('/api/settings', settingsRoutes)
+app.use('/api/wallet', walletRoutes)
+app.use('/api/biometric', biometricRoutes)
 
-// // // DB Connection
-// // mongoose.connect(process.env.MONGO_URI)
-// //   .then(() => {
-// //     console.log('[✔] MongoDB Connected')
-// //     app.listen(PORT, () =>
-// //       console.log(`[🚀] Server running at http://localhost:${PORT}`)
-// //     )
-// //   })
-// //   .catch((err) => {
-// //     console.error('[❌] MongoDB Error:', err.message)
-// //   })
+// ---- MongoDB Connection ----
+mongoose
+  .connect(process.env.MONGO_URI)
+  .then(() => {
+    console.log('[✔] MongoDB Connected')
+    console.log('[✔] Routes loaded: /api/auth, /api/upi, /api/settings, /api/wallet, /api/biometric')
+    app.listen(PORT, '0.0.0.0', () => {  // ✅ Listen on all interfaces
+      console.log(`[🚀] Server running at http://localhost:${PORT}`)
+      console.log(`[📱] Dev Tunnel: https://zlx30n8l-5000.inc1.devtunnels.ms`)
+    })
+  })
+  .catch((err) => {
+    console.error('[❌] MongoDB Connection Error:', err.message)
+    process.exit(1)
+  })
 
 
 
@@ -60,180 +80,12 @@
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-// // // import express from 'express'
-// // // import dotenv from 'dotenv'
-// // // import cors from 'cors'
-// // // import mongoose from 'mongoose'
-// // // import authRoutes from './routes/auth.js'
-// // // import upiRoutes from './routes/upiRoutes.js'
-// // // import settingsRoutes from './routes/settingsRoutes.js'
-// // // import walletRoutes from './routes/walletRoutes.js'
-// // // import biometricRoutes from "./routes/biometricRoutes.js";
-
-// // // dotenv.config()
-
-// // // const app = express()
-// // // const PORT = process.env.PORT || 5000
-
-// // // // ---- Middlewares ----
-// // // app.use(cors());
-// // // app.use(express.json({ limit: "10mb" }));
-// // // app.use(express.urlencoded({ limit: "10mb", extended: true }));
-
-
-// // // // ---- API Routes ----
-// // // app.use('/api/auth', authRoutes)
-// // // app.use('/api/upi', upiRoutes)
-// // // app.use('/api/settings', settingsRoutes)
-// // // app.use('/api/wallet', walletRoutes)
-// // // app.use("/api/biometric", biometricRoutes);
-
-
-// // // // ---- MongoDB Connection ----
-// // // mongoose
-// // //   .connect(process.env.MONGO_URI)
-// // //   .then(() => {
-// // //     console.log('[✔] MongoDB Connected')
-// // //     app.listen(PORT, () =>
-// // //       console.log(`[🚀] Server running at http://localhost:${PORT}`)
-// // //     )
-// // //   })
-// // //   .catch((err) => {
-// // //     console.error('[❌] MongoDB Connection Error:', err.message)
-// // //     process.exit(1)
-// // //   })
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-// // // // import express from 'express'
-// // // // import dotenv from 'dotenv'
-// // // // import cors from 'cors'
-// // // // import mongoose from 'mongoose'
-// // // // import authRoutes from './routes/auth.js'
-// // // // import upiRoutes from './routes/upiRoutes.js'
-// // // // import settingsRoutes from './routes/settingsRoutes.js'
-// // // // import walletRoutes from './routes/walletRoutes.js'
-
-// // // // dotenv.config()
-
-// // // // const app = express()
-// // // // const PORT = process.env.PORT || 5000
-
-// // // // // ---- Middlewares ----
-// // // // app.use(cors())
-// // // // app.use(express.json())
-
-// // // // // ---- API Routes ----
-// // // // app.use('/api/auth', authRoutes)
-// // // // app.use('/api/upi', upiRoutes)
-// // // // app.use('/api/settings', settingsRoutes)
-// // // // app.use('/api/wallet', walletRoutes)
-
-// // // // // ---- MongoDB Connection ----
-// // // // mongoose
-// // // //   .connect(process.env.MONGO_URI)
-// // // //   .then(() => {
-// // // //     console.log('[✔] MongoDB Connected')
-// // // //     app.listen(PORT, () =>
-// // // //       console.log(`[🚀] Server running at http://localhost:${PORT}`)
-// // // //     )
-// // // //   })
-// // // //   .catch((err) => {
-// // // //     console.error('[❌] MongoDB Connection Error:', err.message)
-// // // //     process.exit(1)
-// // // //   })
-
-
-
-
-
-// // server.js - MUST HAVE THESE LINES
+// // server.js - LOCAL DEVELOPMENT VERSION
 // import express from 'express'
 // import dotenv from 'dotenv'
 // import cors from 'cors'
 // import mongoose from 'mongoose'
-// import authRoutes from './routes/auth.js'
-// import upiRoutes from './routes/upiRoutes.js'
-// import settingsRoutes from './routes/settingsRoutes.js'
-// import walletRoutes from './routes/walletRoutes.js'
-// import biometricRoutes from './routes/biometricRoutes.js' // ✅ ADD THIS LINE
-
-// dotenv.config()
-
-// const app = express()
-// const PORT = process.env.PORT || 5000
-
-// // ---- Middlewares ----
-// app.use(cors())
-// app.use(express.json({ limit: '10mb' })) // ✅ INCREASE LIMIT FOR IMAGES
-
-// // ---- API Routes ----
-// app.use('/api/auth', authRoutes)
-// app.use('/api/upi', upiRoutes)
-// app.use('/api/settings', settingsRoutes)
-// app.use('/api/wallet', walletRoutes)
-// app.use('/api/biometric', biometricRoutes) // ✅ ADD THIS LINE
-
-// // ---- MongoDB Connection ----
-// mongoose
-//   .connect(process.env.MONGO_URI)
-//   .then(() => {
-//     console.log('[✔] MongoDB Connected')
-//     console.log('[✔] Routes loaded: /api/auth, /api/upi, /api/settings, /api/wallet, /api/biometric')
-//     app.listen(PORT, () =>
-//       console.log(`[🚀] Server running at http://localhost:${PORT}`)
-//     )
-//   })
-//   .catch((err) => {
-//     console.error('[❌] MongoDB Connection Error:', err.message)
-//     process.exit(1)
-//   })
-
-
-
-
-
-
-
-// // server.js - ADD SESSION MIDDLEWARE
-// import express from 'express'
-// import dotenv from 'dotenv'
-// import cors from 'cors'
-// import mongoose from 'mongoose'
-// import session from 'express-session' // ✅ ADD THIS
+// import session from 'express-session'
 // import authRoutes from './routes/auth.js'
 // import upiRoutes from './routes/upiRoutes.js'
 // import settingsRoutes from './routes/settingsRoutes.js'
@@ -246,23 +98,23 @@
 // const PORT = process.env.PORT || 5000
 
 // // ---- Middlewares ----
-// // ✅ UPDATE CORS to allow credentials
+// // ✅ SIMPLE CORS for local development
 // app.use(cors({
-//   origin: process.env.FRONTEND_URL || 'http://localhost:5173',
-//   credentials: true // ✅ IMPORTANT for sessions
+//   origin: 'http://localhost:5173', // Your frontend URL
+//   credentials: true
 // }))
 
 // app.use(express.json({ limit: '10mb' }))
 
-// // ✅ ADD SESSION MIDDLEWARE (before routes)
+// // ✅ SESSION MIDDLEWARE
 // app.use(session({
 //   secret: process.env.SESSION_SECRET || 'your-secret-key-change-in-production',
 //   resave: false,
 //   saveUninitialized: false,
 //   cookie: { 
-//     secure: process.env.NODE_ENV === 'production', // true on Render
+//     secure: false, // false for localhost (HTTP)
 //     httpOnly: true,
-//     sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax', // ✅ Important for cross-origin
+//     sameSite: 'lax', // 'lax' for localhost
 //     maxAge: 10 * 60 * 1000 // 10 minutes
 //   }
 // }))
@@ -293,70 +145,70 @@
 
 
 
+// // // server.js - LOCAL DEVELOPMENT VERSION
+// // import express from 'express'
+// // import dotenv from 'dotenv'
+// // import cors from 'cors'
+// // import mongoose from 'mongoose'
+// // import session from 'express-session'
+// // import authRoutes from './routes/auth.js'
+// // import upiRoutes from './routes/upiRoutes.js'
+// // import settingsRoutes from './routes/settingsRoutes.js'
+// // import walletRoutes from './routes/walletRoutes.js'
+// // import biometricRoutes from './routes/biometricRoutes.js'
 
+// // dotenv.config()
 
+// // const app = express()
+// // const PORT = process.env.PORT || 5000
 
+// // // ---- Middlewares ----
+// // // ✅ UPDATED CORS - Allow both localhost AND network IP
+// // app.use(cors({
+// //   origin: [
+// //     'http://localhost:5173',
+// //     'http://127.0.0.1:5173',
+// //     'http://192.168.1.57:5173',  // ✅ Add your laptop IP
+// //     'http://192.168.1.57:5000',
+// //   ],
+// //   credentials: true
+// // }))
 
+// // app.use(express.json({ limit: '10mb' }))
 
+// // // ✅ SESSION MIDDLEWARE
+// // app.use(session({
+// //   secret: process.env.SESSION_SECRET || 'your-secret-key-change-in-production',
+// //   resave: false,
+// //   saveUninitialized: false,
+// //   cookie: { 
+// //     secure: false, // false for localhost (HTTP)
+// //     httpOnly: true,
+// //     sameSite: 'lax',
+// //     maxAge: 10 * 60 * 1000 // 10 minutes
+// //   }
+// // }))
 
+// // // ---- API Routes ----
+// // app.use('/api/auth', authRoutes)
+// // app.use('/api/upi', upiRoutes)
+// // app.use('/api/settings', settingsRoutes)
+// // app.use('/api/wallet', walletRoutes)
+// // app.use('/api/biometric', biometricRoutes)
 
-// server.js - ADD SESSION MIDDLEWARE
-import express from 'express'
-import dotenv from 'dotenv'
-import cors from 'cors'
-import mongoose from 'mongoose'
-import session from 'express-session' // ✅ ADD THIS
-import authRoutes from './routes/auth.js'
-import upiRoutes from './routes/upiRoutes.js'
-import settingsRoutes from './routes/settingsRoutes.js'
-import walletRoutes from './routes/walletRoutes.js'
-import biometricRoutes from './routes/biometricRoutes.js'
+// // // ---- MongoDB Connection ----
+// // mongoose
+// //   .connect(process.env.MONGO_URI)
+// //   .then(() => {
+// //     console.log('[✔] MongoDB Connected')
+// //     console.log('[✔] Routes loaded: /api/auth, /api/upi, /api/settings, /api/wallet, /api/biometric')
+// //     app.listen(PORT, '0.0.0.0', () => {  // ✅ Listen on all network interfaces
+// //       console.log(`[🚀] Server running at http://localhost:${PORT}`)
+// //       console.log(`[📱] Access from phone: http://192.168.1.57:${PORT}`)  // ✅ Show phone URL
+// //     })
+// //   })
+// //   .catch((err) => {
+// //     console.error('[❌] MongoDB Connection Error:', err.message)
+// //     process.exit(1)
+// //   })
 
-dotenv.config()
-
-const app = express()
-const PORT = process.env.PORT || 5000
-
-// ---- Middlewares ----
-// ✅ UPDATE CORS to allow credentials
-app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:5173',
-  credentials: true // ✅ IMPORTANT for sessions
-}))
-
-app.use(express.json({ limit: '10mb' }))
-
-// ✅ ADD SESSION MIDDLEWARE (before routes)
-app.use(session({
-  secret: process.env.SESSION_SECRET || 'your-secret-key-change-in-production',
-  resave: false,
-  saveUninitialized: false,
-  cookie: { 
-    secure: process.env.NODE_ENV === 'production', // true on Render
-    httpOnly: true,
-    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax', // ✅ Important for cross-origin
-    maxAge: 10 * 60 * 1000 // 10 minutes
-  }
-}))
-
-// ---- API Routes ----
-app.use('/api/auth', authRoutes)
-app.use('/api/upi', upiRoutes)
-app.use('/api/settings', settingsRoutes)
-app.use('/api/wallet', walletRoutes)
-app.use('/api/biometric', biometricRoutes)
-
-// ---- MongoDB Connection ----
-mongoose
-  .connect(process.env.MONGO_URI)
-  .then(() => {
-    console.log('[✔] MongoDB Connected')
-    console.log('[✔] Routes loaded: /api/auth, /api/upi, /api/settings, /api/wallet, /api/biometric')
-    app.listen(PORT, () =>
-      console.log(`[🚀] Server running at http://localhost:${PORT}`)
-    )
-  })
-  .catch((err) => {
-    console.error('[❌] MongoDB Connection Error:', err.message)
-    process.exit(1)
-  })
