@@ -76,10 +76,10 @@ function SettingsPage() {
 
       const bioRes = await api.get('/biometric/status', { headers })
 
-      setBiometricStatus({
-        faceRegistered: Boolean(bioRes.data.faceRegistered),
-        fingerprintRegistered: Boolean(bioRes.data.biometricRegistered),
-      })
+    setBiometricStatus({
+  faceRegistered: Boolean(bioRes.data.faceRegistered),
+  fingerprintRegistered: Boolean(bioRes.data.fingerprintRegistered), // ✅ CORRECT
+})
     }
 
     load().catch(console.error)

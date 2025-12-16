@@ -725,8 +725,12 @@
 // }
 
 // export default WithdrawPage
+ 
 
- // src/pages/WithdrawPage.jsx - FINAL FIXED VERSION
+
+
+
+// src/pages/WithdrawPage.jsx - FINAL FIXED VERSION
 import React, { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import api from '../services/api'
@@ -873,26 +877,26 @@ function WithdrawPage() {
 
       const token = localStorage.getItem('token')
 
-      // ✅ STEP 1: get auth options
-      const optionsRes = await api.get('/biometric/authentication-options', {
+      // ✅ FIX 1: Correct endpoint name
+      const optionsRes = await api.get('/biometric/auth-options', { // ✅ CHANGED FROM authentication-options
         headers: { Authorization: `Bearer ${token}` },
       })
 
       // ✅ STEP 2: native biometric popup
       const authResult = await startAuthentication(optionsRes.data)
 
-      // ✅ STEP 3: verify with backend
+      // ✅ FIX 2: Correct endpoint AND parameter name
       const verifyRes = await api.post(
-        '/biometric/authentication-verify',
-        { authenticationResult: authResult },
+        '/biometric/auth-verify', // ✅ CHANGED FROM authentication-verify
+        { authResult: authResult }, // ✅ CHANGED FROM authenticationResult
         { headers: { Authorization: `Bearer ${token}` } },
       )
 
       if (verifyRes.data.verified) {
-        const tokenFromBackend = verifyRes.data.biometricToken // ✅ FIX 3: keep token
+        const tokenFromBackend = verifyRes.data.biometricToken
         setBiometricVerified(true)
         setBiometricToken(tokenFromBackend)
-        return tokenFromBackend // ✅ return token, not boolean
+        return tokenFromBackend
       }
 
       setError('Biometric verification failed')
