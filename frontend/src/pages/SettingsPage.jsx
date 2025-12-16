@@ -53,43 +53,53 @@ function SettingsPage() {
     }
   }, [])
 
-  // Load user data on mount
-  useEffect(() => {
-    const load = async () => {
-      const token = localStorage.getItem('token')
-      if (!token) return
+ // Load user data on mount
+useEffect(() => {
+  const load = async () => {
+    const token = localStorage.getItem('token')
+    if (!token) return
 
-      const headers = { Authorization: `Bearer ${token}` }
+    const headers = { Authorization: `Bearer ${token}` }
 
-      try {
-        const res = await api.get('/settings/me', { headers })
-        setProfile({
-          fullName: res.data.fullName || '',
-          email: res.data.email || '',
-          phone: res.data.phone || '',
-          city: res.data.city || '',
-          address: res.data.address || '',
-        })
+    try {
+      const res = await api.get('/settings/me', { headers })
+      setProfile({
+        fullName: res.data.fullName || '',
+        email: res.data.email || '',
+        phone: res.data.phone || '',
+        city: res.data.city || '',
+        address: res.data.address || '',
+      })
 
-        setThreshold(
-          res.data.biometricThreshold ??
-          res.data.securitySettings?.biometricThreshold ??
-          5000
-        )
+      setThreshold(
+        res.data.biometricThreshold ??
+        res.data.securitySettings?.biometricThreshold ??
+        5000
+      )
 
-        const bioRes = await api.get('/biometric/status', { headers })
-        setBiometricStatus({
-          faceRegistered: Boolean(bioRes.data.faceRegistered),
-          fingerprintRegistered: Boolean(bioRes.data.fingerprintRegistered),
-        })
-      } catch (err) {
-        console.error('Failed to load settings:', err)
-        setError('Failed to load settings')
+      const bioRes = await api.get('/biometric/status', { headers })
+      setBiometricStatus({
+        faceRegistered: Boolean(bioRes.data.faceRegistered),
+        fingerprintRegistered: Boolean(bioRes.data.fingerprintRegistered),
+      })
+
+      // ✅ CRITICAL FIX: Load saved face photo
+      if (bioRes.data.faceRegistered && res.data.faceData) {
+        setCapturedFace(res.data.faceData)
+        console.log('✅ Loaded saved face photo, length:', res.data.faceData.length)
+      } else if (bioRes.data.faceRegistered && !res.data.faceData) {
+        console.warn('⚠️ Face marked as registered but no faceData in response')
       }
-    }
 
-    load()
-  }, [])
+    } catch (err) {
+      console.error('Failed to load settings:', err)
+      setError('Failed to load settings')
+    }
+  }
+
+  load()
+}, [])
+
 
   const withAuth = () => {
     const token = localStorage.getItem('token')

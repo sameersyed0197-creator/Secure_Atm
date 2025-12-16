@@ -14,17 +14,21 @@ import { compareFaces } from '../services/geminiService.js'
 const router = express.Router()
 
 // ---------------------------------------------------
-// Dynamic RP & Origin
+// ✅ FIXED: Dynamic RP & Origin (No DevTunnels)
 // ---------------------------------------------------
 const getExpectedOrigin = () =>
   process.env.FRONTEND_URL || 'http://localhost:5173'
 
 const getExpectedRPID = () => {
   const origin = getExpectedOrigin()
-  if (origin.includes('devtunnels.ms')) {
-    return 'inc1.devtunnels.ms'
+  
+  // ✅ Extract hostname from URL automatically
+  try {
+    const url = new URL(origin)
+    return url.hostname  // Returns: secure-atm-yzh1.onrender.com
+  } catch (err) {
+    return process.env.RP_ID || 'localhost'
   }
-  return process.env.RP_ID || 'localhost'
 }
 
 // ---------------------------------------------------
@@ -123,9 +127,15 @@ router.get('/register-options', auth, async (req, res) => {
     const user = await User.findById(req.user.userId)
     if (!user) return res.status(404).json({ message: 'User not found' })
 
+    const rpID = getExpectedRPID()
+    const origin = getExpectedOrigin()
+    
+    console.log('🔍 Registration - RP_ID:', rpID)
+    console.log('🔍 Registration - Origin:', origin)
+
     const options = await generateRegistrationOptions({
       rpName: 'SecureATM',
-      rpID: getExpectedRPID(),
+      rpID: rpID,
       
       // ✅ Use email as userID (better for passkey managers)
       userID: isoUint8Array.fromUTF8String(user.email),
@@ -145,12 +155,12 @@ router.get('/register-options', auth, async (req, res) => {
       
       // ✅ CRITICAL FIX: Use fromBuffer instead of toBuffer
       excludeCredentials: user.biometricDevices.map((d) => ({
-        id: isoBase64URL.fromBuffer(d.credentialID),  // ✅ CHANGED from toBuffer
+        id: isoBase64URL.fromBuffer(d.credentialID),
         type: 'public-key',
         transports: d.transports || ['internal'],
       })),
       
-      // ✅ Attestation for security (use 'direct' in production)
+      // ✅ Attestation for security
       attestationType: 'none',
     })
 
@@ -177,11 +187,17 @@ router.post('/register-verify', auth, async (req, res) => {
       return res.status(400).json({ message: 'No challenge found - call /register-options first' })
     }
 
+    const rpID = getExpectedRPID()
+    const origin = getExpectedOrigin()
+    
+    console.log('🔍 Verify Registration - RP_ID:', rpID)
+    console.log('🔍 Verify Registration - Origin:', origin)
+
     const verification = await verifyRegistrationResponse({
       response: req.body.registrationResult,
       expectedChallenge: user.webauthnChallenge,
-      expectedOrigin: getExpectedOrigin(),
-      expectedRPID: getExpectedRPID(),
+      expectedOrigin: origin,
+      expectedRPID: rpID,
       requireUserVerification: true,
     })
 
@@ -236,12 +252,17 @@ router.get('/auth-options', auth, async (req, res) => {
       return res.status(400).json({ message: 'No fingerprint registered' })
     }
 
+    const rpID = getExpectedRPID()
+    
+    console.log('🔍 Auth Options - RP_ID:', rpID)
+    console.log('🔍 Auth Options - User:', user.email)
+
     const options = await generateAuthenticationOptions({
-      rpID: getExpectedRPID(),
+      rpID: rpID,
       
       // ✅ CRITICAL FIX: Use fromBuffer instead of toBuffer
       allowCredentials: user.biometricDevices.map((d) => ({
-        id: isoBase64URL.fromBuffer(d.credentialID),  // ✅ CHANGED from toBuffer
+        id: isoBase64URL.fromBuffer(d.credentialID),
         type: 'public-key',
         transports: d.transports || ['internal'],
       })),
@@ -275,6 +296,13 @@ router.post('/auth-verify', auth, async (req, res) => {
       return res.status(400).json({ message: 'No challenge found - call /auth-options first' })
     }
 
+    const rpID = getExpectedRPID()
+    const origin = getExpectedOrigin()
+    
+    console.log('🔍 Auth Verify - RP_ID:', rpID)
+    console.log('🔍 Auth Verify - Origin:', origin)
+    console.log('🔍 Auth Verify - Received rawId:', req.body.authResult.rawId)
+
     // ✅ Find matching authenticator by comparing credential IDs
     const authenticator = user.biometricDevices.find(
       (d) => isoBase64URL.fromBuffer(d.credentialID) === req.body.authResult.rawId
@@ -291,8 +319,8 @@ router.post('/auth-verify', auth, async (req, res) => {
     const verification = await verifyAuthenticationResponse({
       response: req.body.authResult,
       expectedChallenge: user.webauthnChallenge,
-      expectedOrigin: getExpectedOrigin(),
-      expectedRPID: getExpectedRPID(),
+      expectedOrigin: origin,
+      expectedRPID: rpID,
       authenticator: {
         credentialID: authenticator.credentialID,
         credentialPublicKey: authenticator.credentialPublicKey,
@@ -328,7 +356,6 @@ router.post('/auth-verify', auth, async (req, res) => {
 })
 
 export default router
-
 
 
 

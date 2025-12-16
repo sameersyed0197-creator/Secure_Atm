@@ -6,7 +6,7 @@ import auth from '../middleware/auth.js'
 const router = express.Router()
 
 // ---------------------------------------------------
-// GET /api/settings/me
+// ✅ FIXED: GET /api/settings/me (Now returns faceData)
 // ---------------------------------------------------
 router.get('/me', auth, async (req, res) => {
   try {
@@ -23,9 +23,17 @@ router.get('/me', auth, async (req, res) => {
       address: user.address,
       balance: user.balance,
       dailyLimit: user.dailyLimit,
+      
+      // ✅ CRITICAL FIX: Add face data
+      faceData: user.faceData || null,
+      faceRegistered: user.faceRegistered || false,
+      
+      // Biometric threshold
+      biometricThreshold: user.securitySettings?.biometricThreshold ?? 5000,
+      
+      // Also keep the old structure for backward compatibility
       securitySettings: {
-        biometricThreshold:
-          user.securitySettings?.biometricThreshold ?? 5000,
+        biometricThreshold: user.securitySettings?.biometricThreshold ?? 5000,
       },
     })
   } catch (err) {
@@ -124,7 +132,7 @@ router.put('/transaction-pin', auth, async (req, res) => {
 })
 
 // ---------------------------------------------------
-// PUT /api/settings/biometric-threshold
+// ✅ FIXED: PUT /api/settings/biometric-threshold
 // ---------------------------------------------------
 router.put('/biometric-threshold', auth, async (req, res) => {
   try {
@@ -147,8 +155,15 @@ router.put('/biometric-threshold', auth, async (req, res) => {
       return res.status(404).json({ message: 'User not found' })
     }
 
+    // ✅ Initialize securitySettings if it doesn't exist
+    if (!user.securitySettings) {
+      user.securitySettings = {}
+    }
+
     user.securitySettings.biometricThreshold = threshold
     await user.save()
+
+    console.log(`✅ Threshold updated to ₹${threshold} for ${user.email}`)
 
     res.json({
       success: true,
@@ -162,7 +177,6 @@ router.put('/biometric-threshold', auth, async (req, res) => {
 })
 
 export default router
-
 
 
 
