@@ -728,15 +728,11 @@
 
 
 
-
-
-
-// src/pages/WithdrawPage.jsx - FINAL FIXED VERSION
+ // src/pages/WithdrawPage.jsx - FINAL FIXED VERSION
 import React, { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import api from '../services/api'
 import { browserSupportsWebAuthn, startAuthentication } from '@simplewebauthn/browser'
-
 
 function WithdrawPage() {
   const navigate = useNavigate()
@@ -757,7 +753,7 @@ function WithdrawPage() {
     faceRegistered: false,
     fingerprintRegistered: false,
   })
-  
+
   const [chosenBiometric, setChosenBiometric] = useState(null)
   const [biometricVerified, setBiometricVerified] = useState(false)
   const [biometricToken, setBiometricToken] = useState(null)
@@ -782,21 +778,22 @@ function WithdrawPage() {
         const response = await api.get('/biometric/status', {
           headers: { Authorization: `Bearer ${token}` },
         })
+
+        // ✅ FIX 1: faceRegistered safe fallback
         setBiometricStatus({
-          faceRegistered: response.data.faceRegistered || false,
-          fingerprintRegistered: response.data.webAuthnRegistered || false,
+          faceRegistered: Boolean(response.data.faceRegistered ?? false),
+          fingerprintRegistered: Boolean(response.data.biometricRegistered),
         })
 
         const settingsRes = await api.get('/settings/me', {
           headers: { Authorization: `Bearer ${token}` },
         })
-        
+
         if (settingsRes.data.biometricThreshold !== undefined) {
           setThreshold(settingsRes.data.biometricThreshold)
         } else if (settingsRes.data.securitySettings?.biometricThreshold !== undefined) {
           setThreshold(settingsRes.data.securitySettings.biometricThreshold)
         }
-        
       } catch (err) {
         console.error('Error checking biometric status:', err)
       }
@@ -865,84 +862,72 @@ function WithdrawPage() {
     setShowCamera(false)
     setIsCapturing(false)
   }
-// ✅ Real fingerprint verification using WebAuthn
-const verifyFingerprint = async () => {
-  try {
-    console.log('🔐 [1/4] Checking WebAuthn support...')
-    
-    if (!browserSupportsWebAuthn()) {
-      setError('Biometric authentication not supported on this browser')
-      return false
+
+  const verifyFingerprint = async () => {
+    try {
+      if (!browserSupportsWebAuthn()) {
+        setError('Biometric authentication not supported')
+        return null
+      }
+
+      setLoading(true)
+      setError('')
+
+      const token = localStorage.getItem('token')
+
+      // ✅ STEP 1: get auth options
+      const optionsRes = await api.get('/biometric/authentication-options', {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+
+      // ✅ STEP 2: native biometric popup
+      const authResult = await startAuthentication(optionsRes.data)
+
+      // ✅ STEP 3: verify with backend
+      const verifyRes = await api.post(
+        '/biometric/authentication-verify',
+        { authenticationResult: authResult },
+        { headers: { Authorization: `Bearer ${token}` } },
+      )
+
+      if (verifyRes.data.verified) {
+        const tokenFromBackend = verifyRes.data.biometricToken // ✅ FIX 3: keep token
+        setBiometricVerified(true)
+        setBiometricToken(tokenFromBackend)
+        return tokenFromBackend // ✅ return token, not boolean
+      }
+
+      setError('Biometric verification failed')
+      return null
+    } catch (err) {
+      console.error(err)
+      setError(err.response?.data?.message || 'Biometric failed')
+      return null
+    } finally {
+      setLoading(false)
     }
-
-    console.log('✅ WebAuthn is supported')
-
-    setLoading(true)
-    setError('')
-
-    const token = localStorage.getItem('token')
-
-    console.log('🔐 [2/4] Fetching authentication options from backend...')
-    
-    const optionsResponse = await api.get('/biometric/fingerprint-options', {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-
-    console.log('✅ Got options from backend:', optionsResponse.data)
-    console.log('🔐 [3/4] Triggering native biometric prompt...')
-    console.log('⚠️ NATIVE POPUP SHOULD APPEAR NOW!')
-
-    // This line should trigger the native fingerprint/Face ID prompt
-    const authResult = await startAuthentication(optionsResponse.data)
-
-    console.log('✅ User completed biometric! Result:', authResult)
-    console.log('🔐 [4/4] Sending verification to backend...')
-
-    const verificationResponse = await api.post(
-      '/biometric/verify-fingerprint',
-      { authResult },
-      { headers: { Authorization: `Bearer ${token}` } }
-    )
-
-    console.log('✅ Backend verification response:', verificationResponse.data)
-
-    setLoading(false)
-
-    if (verificationResponse.data.verified) {
-      console.log('🎉 Fingerprint verified successfully!')
-      setBiometricVerified(true)
-      setBiometricToken(verificationResponse.data.biometricToken)
-      return true
-    } else {
-      setError('Biometric verification failed. Please try again.')
-      return false
-    }
-  } catch (err) {
-    console.error('❌ Fingerprint verification error:', err)
-    console.error('Error name:', err.name)
-    console.error('Error message:', err.message)
-    console.error('Full error:', err)
-    
-    setLoading(false)
-
-    if (err.name === 'NotAllowedError') {
-      setError('Biometric authentication was cancelled')
-    } else if (err.name === 'AbortError') {
-      setError('Biometric authentication was denied or timed out')
-    } else if (err.name === 'NotSupportedError') {
-      setError('Biometric authentication not supported on this device')
-    } else if (err.response?.data?.message) {
-      setError(err.response.data.message)
-    } else {
-      setError(`Biometric authentication failed: ${err.message}`)
-    }
-
-    return false
   }
-}
 
-  // ✅ Process withdrawal with chosen biometric method
-  const processWithdrawal = async () => {
+  const verifyFace = async () => {
+    try {
+      const token = localStorage.getItem('token')
+
+      const res = await api.post(
+        '/biometric/verify-face',
+        { faceData: capturedFace },
+        { headers: { Authorization: `Bearer ${token}` } },
+      )
+
+      return res.data.verified === true
+    } catch  {
+      setError('Face verification failed')
+      return false
+    }
+  }
+
+  // ✅ Process withdrawal with chosen biometric method (FINAL FIX)
+  // ✅ FIX 3: accept token from caller to avoid race
+  const processWithdrawal = async (passkeyToken = null) => {
     setError('')
     setSuccess('')
     const amt = Number(amount)
@@ -967,42 +952,61 @@ const verifyFingerprint = async () => {
     setLoading(true)
 
     try {
-      let requestBody = {
+      const requestBody = {
         amount: amt,
         pin: pin,
       }
 
-      // ✅ If amount >= threshold, include the chosen biometric data
+      // 🔐 BIOMETRIC ENFORCEMENT (CRITICAL FIX)
       if (amt >= threshold) {
+        if (!chosenBiometric) {
+          setError('Biometric verification required.')
+          setLoading(false)
+          return
+        }
+
+        // 👉 Fingerprint path
         if (chosenBiometric === 'fingerprint') {
-          if (!biometricToken) {
+          const tokenToUse = passkeyToken || biometricToken // ✅ use passed token first
+          if (!tokenToUse) {
             setError('Fingerprint verification required.')
             setLoading(false)
             return
           }
-          requestBody.biometricToken = biometricToken
-        } else if (chosenBiometric === 'face') {
+          requestBody.biometricToken = tokenToUse
+        }
+
+        // 👉 Face path (Gemini verified)
+        if (chosenBiometric === 'face') {
           if (!capturedFace) {
             setError('Face verification required.')
             setLoading(false)
             return
           }
+
+          // ✅ FIX 2: actually verify face before proceeding
+          const faceOk = await verifyFace()
+          if (!faceOk) {
+            setError('Face verification failed.')
+            setLoading(false)
+            return
+          }
+
+          // backend already verifies face via Gemini
           requestBody.faceData = capturedFace
         }
       }
-
-      console.log('🚀 Sending withdrawal request with biometric:', chosenBiometric)
 
       const response = await api.post('/wallet/withdraw', requestBody, {
         headers: { Authorization: `Bearer ${token}` },
       })
 
-      console.log('✅ Withdrawal successful:', response.data)
-
       localStorage.setItem('balance', String(response.data.balance))
 
       setSuccess(
-        `₹${amt.toLocaleString('en-IN')} withdrawn successfully! New balance: ₹${response.data.balance.toLocaleString('en-IN')}`
+        `₹${amt.toLocaleString('en-IN')} withdrawn successfully! New balance: ₹${response.data.balance.toLocaleString(
+          'en-IN',
+        )}`,
       )
 
       setTimeout(() => {
@@ -1010,23 +1014,13 @@ const verifyFingerprint = async () => {
         setPin('')
         setCapturedFace(null)
         setStep(1)
-        setSuccess('')
         setBiometricVerified(false)
         setBiometricToken(null)
         setChosenBiometric(null)
         navigate('/dashboard')
       }, 3000)
     } catch (err) {
-      console.error('❌ Withdrawal error:', err.response?.data || err.message)
-
-      if (err.response?.data?.message) {
-        setError(err.response.data.message)
-      } else if (err.message.includes('Network Error')) {
-        setError('Network error. Please check your connection.')
-      } else {
-        setError('Withdrawal failed. Please try again.')
-      }
-
+      setError(err.response?.data?.message || 'Withdrawal failed.')
       setCapturedFace(null)
       setBiometricToken(null)
       setBiometricVerified(false)
@@ -1053,7 +1047,9 @@ const verifyFingerprint = async () => {
     if (amt >= threshold) {
       if (!biometricStatus.faceRegistered && !biometricStatus.fingerprintRegistered) {
         setError(
-          `Withdrawals above ₹${threshold.toLocaleString('en-IN')} require biometric verification. Please register your fingerprint or face in Settings first.`
+          `Withdrawals above ₹${threshold.toLocaleString(
+            'en-IN',
+          )} require biometric verification. Please register your fingerprint or face in Settings first.`,
         )
         return
       }
@@ -1140,17 +1136,11 @@ const verifyFingerprint = async () => {
                 strokeWidth="2.5"
                 viewBox="0 0 24 24"
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M12 6v6m0 0v6m0-6h6m-6 0H6"
-                />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
               </svg>
             </div>
             <div>
-              <p className="text-xs text-gray-400 uppercase tracking-wide">
-                SecureATM
-              </p>
+              <p className="text-xs text-gray-400 uppercase tracking-wide">SecureATM</p>
               <p className="text-sm font-semibold">Withdraw Cash</p>
             </div>
           </div>
@@ -1169,9 +1159,7 @@ const verifyFingerprint = async () => {
         <div className="w-full max-w-xl bg-[#101010] rounded-2xl border border-dashed border-gray-800 p-5 sm:p-6 shadow-2xl space-y-4">
           {/* Step indicator */}
           <div className="flex items-center justify-between text-xs text-gray-400 mb-1">
-            <span className={step >= 1 ? 'text-emerald-300' : ''}>
-              1. Amount
-            </span>
+            <span className={step >= 1 ? 'text-emerald-300' : ''}>1. Amount</span>
             <span className={step >= 2 ? 'text-emerald-300' : ''}>2. PIN</span>
             <span className={step >= 3 ? 'text-emerald-300' : ''}>
               3. {Number(amount) >= threshold ? 'Biometric' : 'Confirm'}
@@ -1193,11 +1181,10 @@ const verifyFingerprint = async () => {
           {/* Step 1: Amount */}
           {step === 1 && (
             <div className="space-y-4 text-xs sm:text-sm">
-              <h1 className="text-lg sm:text-xl font-semibold">
-                Enter withdrawal amount
-              </h1>
+              <h1 className="text-lg sm:text-xl font-semibold">Enter withdrawal amount</h1>
               <p className="text-gray-400">
-                Available balance: ₹{Number(localStorage.getItem('balance') || 0).toLocaleString('en-IN')}
+                Available balance: ₹
+                {Number(localStorage.getItem('balance') || 0).toLocaleString('en-IN')}
               </p>
 
               <div className="space-y-1.5">
@@ -1216,7 +1203,7 @@ const verifyFingerprint = async () => {
               {Number(amount) >= threshold && (
                 <div className="text-xs text-amber-300 bg-amber-500/10 border border-dashed border-amber-500/30 rounded-lg p-3">
                   🔒 Withdrawals above ₹{threshold.toLocaleString('en-IN')} require biometric verification
-                  {(!biometricStatus.faceRegistered && !biometricStatus.fingerprintRegistered) && (
+                  {!biometricStatus.faceRegistered && !biometricStatus.fingerprintRegistered && (
                     <p className="mt-1 text-amber-200">
                       Please register at least one biometric method in Settings first.
                     </p>
@@ -1229,9 +1216,7 @@ const verifyFingerprint = async () => {
           {/* Step 2: PIN */}
           {step === 2 && (
             <div className="space-y-4 text-xs sm:text-sm">
-              <h1 className="text-lg sm:text-xl font-semibold">
-                Confirm with PIN
-              </h1>
+              <h1 className="text-lg sm:text-xl font-semibold">Confirm with PIN</h1>
               <p className="text-gray-400">
                 Enter your transaction PIN to authorize this withdrawal.
               </p>
@@ -1320,24 +1305,23 @@ const verifyFingerprint = async () => {
                             </svg>
                           </div>
                           <p className="font-semibold text-white mb-1">Face Recognition</p>
-                          <p className="text-[10px] text-gray-400">
-                            Verify with camera
-                          </p>
+                          <p className="text-[10px] text-gray-400">Verify with camera</p>
                         </button>
                       )}
                     </div>
 
-                    {!biometricStatus.fingerprintRegistered && !biometricStatus.faceRegistered && (
-                      <div className="text-center py-6 text-gray-400">
-                        <p className="mb-2">No biometric methods registered</p>
-                        <button
-                          onClick={() => navigate('/settings')}
-                          className="text-emerald-300 hover:underline"
-                        >
-                          Go to Settings →
-                        </button>
-                      </div>
-                    )}
+                    {!biometricStatus.fingerprintRegistered &&
+                      !biometricStatus.faceRegistered && (
+                        <div className="text-center py-6 text-gray-400">
+                          <p className="mb-2">No biometric methods registered</p>
+                          <button
+                            onClick={() => navigate('/settings')}
+                            className="text-emerald-300 hover:underline"
+                          >
+                            Go to Settings →
+                          </button>
+                        </div>
+                      )}
                   </>
                 ) : chosenBiometric === 'fingerprint' && !biometricVerified ? (
                   // ✅ FINGERPRINT VERIFICATION
@@ -1371,14 +1355,16 @@ const verifyFingerprint = async () => {
                         </svg>
                       </div>
                       <p className="text-[11px] text-gray-400 text-center max-w-xs">
-                        {loading ? 'Please complete biometric authentication on your device...' : 'Click below to authenticate'}
+                        {loading
+                          ? 'Please complete biometric authentication on your device...'
+                          : 'Click below to authenticate'}
                       </p>
                       <button
                         type="button"
                         onClick={async () => {
-                          const success = await verifyFingerprint()
-                          if (success) {
-                            setTimeout(() => processWithdrawal(), 500)
+                          const token = await verifyFingerprint()
+                          if (token) {
+                            setTimeout(() => processWithdrawal(token), 200)
                           }
                         }}
                         disabled={loading}
@@ -1416,9 +1402,7 @@ const verifyFingerprint = async () => {
                 ) : chosenBiometric === 'face' ? (
                   // ✅ FACE VERIFICATION
                   <>
-                    <h1 className="text-lg sm:text-xl font-semibold">
-                      Face Verification
-                    </h1>
+                    <h1 className="text-lg sm:text-xl font-semibold">Face Verification</h1>
                     <p className="text-gray-400">
                       Look at the camera. Face will be captured in 2 seconds.
                     </p>
@@ -1462,7 +1446,7 @@ const verifyFingerprint = async () => {
                         </div>
                         <div className="flex gap-2">
                           <button
-                            onClick={processWithdrawal}
+                            onClick={() => processWithdrawal()}
                             disabled={loading}
                             className="flex-1 px-4 py-2 text-xs rounded-lg bg-gradient-to-r from-amber-400 to-amber-600 text-black font-semibold hover:brightness-110 transition disabled:opacity-50"
                           >
@@ -1535,14 +1519,14 @@ const verifyFingerprint = async () => {
               ) : (
                 // amount < threshold → Confirm Withdrawal
                 <>
-                  <h1 className="text-lg sm:text-xl font-semibold">
-                    Confirm Withdrawal
-                  </h1>
+                  <h1 className="text-lg sm:text-xl font-semibold">Confirm Withdrawal</h1>
                   <div className="bg-[#151515] rounded-lg border border-dashed border-gray-700 p-4">
                     <div className="space-y-2">
                       <div className="flex justify-between">
                         <span className="text-gray-400">Amount:</span>
-                        <span className="font-semibold">₹{Number(amount).toLocaleString('en-IN')}</span>
+                        <span className="font-semibold">
+                          ₹{Number(amount).toLocaleString('en-IN')}
+                        </span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-gray-400">Service Charge:</span>
@@ -1597,7 +1581,7 @@ const verifyFingerprint = async () => {
             {step === 3 && Number(amount) < threshold && (
               <button
                 type="button"
-                onClick={processWithdrawal}
+                onClick={() => processWithdrawal()}
                 disabled={loading}
                 className="px-5 py-2 rounded-lg bg-gradient-to-r from-emerald-400 to-emerald-600 text-black font-semibold text-xs sm:text-sm hover:brightness-110 disabled:opacity-60"
               >
@@ -1615,55 +1599,3 @@ const verifyFingerprint = async () => {
 }
 
 export default WithdrawPage
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
- 

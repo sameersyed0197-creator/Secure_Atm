@@ -2,28 +2,27 @@ import express from 'express'
 import jwt from 'jsonwebtoken'
 import User from '../models/User.js'
 import auth from '../middleware/auth.js'
-import { isoUint8Array, isoBase64URL } from '@simplewebauthn/server/helpers'
-
-import { compareFaces } from '../services/geminiService.js'
 import {
   generateAuthenticationOptions,
   verifyAuthenticationResponse,
   generateRegistrationOptions,
   verifyRegistrationResponse,
 } from '@simplewebauthn/server'
+import { isoUint8Array, isoBase64URL } from '@simplewebauthn/server/helpers'
+import { compareFaces } from '../services/geminiService.js'
 
 const router = express.Router()
 
-// ✅ Dynamic RP_ID and Origin detection
-const getExpectedOrigin = () => {
-  return process.env.FRONTEND_URL || 'http://localhost:5173'
-}
+// ---------------------------------------------------
+// Dynamic RP & Origin
+// ---------------------------------------------------
+const getExpectedOrigin = () =>
+  process.env.FRONTEND_URL || 'http://localhost:5173'
 
 const getExpectedRPID = () => {
-  // For dev tunnels, extract the base domain
   const origin = getExpectedOrigin()
   if (origin.includes('devtunnels.ms')) {
-    return 'inc1.devtunnels.ms'  // ✅ Base domain for MS dev tunnels
+    return 'inc1.devtunnels.ms'
   }
   return process.env.RP_ID || 'localhost'
 }
@@ -32,250 +31,193 @@ const getExpectedRPID = () => {
 // GET /api/biometric/status
 // ---------------------------------------------------
 router.get('/status', auth, async (req, res) => {
-  try {
-    const user = await User.findById(req.user.userId)
-    if (!user) return res.status(404).json({ message: 'User not found' })
+  const user = await User.findById(req.user.userId)
+  if (!user) return res.status(404).json({ message: 'User not found' })
 
-    res.json({
-      faceRegistered: user.faceRegistered || false,
-      fingerprintRegistered: user.fingerprintRegistered || false,
-      webAuthnRegistered: (user.biometricDevices?.length || 0) > 0,
-      deviceCount: user.biometricDevices?.length || 0,
-    })
-  } catch (err) {
-    console.error('STATUS ERROR:', err)
-    res.status(500).json({ message: 'Server error' })
-  }
+  res.json({
+    faceRegistered: user.faceRegistered || false,
+    fingerprintRegistered: user.biometricDevices.length > 0,
+    deviceCount: user.biometricDevices.length,
+  })
 })
 
 // ---------------------------------------------------
 // POST /api/biometric/register-face
 // ---------------------------------------------------
 router.post('/register-face', auth, async (req, res) => {
-  try {
-    const { faceData } = req.body
-    if (!faceData) {
-      return res.status(400).json({ message: 'Face data required' })
-    }
-
-    const user = await User.findById(req.user.userId)
-    if (!user) return res.status(404).json({ message: 'User not found' })
-
-    user.faceData = faceData
-    user.faceRegistered = true
-    await user.save()
-
-    res.json({ success: true, message: 'Face registered successfully' })
-  } catch (err) {
-    console.error('REGISTER FACE ERROR:', err)
-    res.status(500).json({ message: 'Server error' })
+  const { faceData } = req.body
+  if (!faceData) {
+    return res.status(400).json({ message: 'Face data required' })
   }
+
+  const user = await User.findById(req.user.userId)
+  if (!user) return res.status(404).json({ message: 'User not found' })
+
+  // 🔁 Allow unlimited updates
+  user.faceData = faceData
+  user.faceRegistered = true
+  await user.save()
+
+  res.json({ success: true, message: 'Face registered successfully' })
 })
 
 // ---------------------------------------------------
 // POST /api/biometric/verify-face
 // ---------------------------------------------------
 router.post('/verify-face', auth, async (req, res) => {
-  try {
-    const { faceData } = req.body
-    const user = await User.findById(req.user.userId)
+  const { faceData } = req.body
+  const user = await User.findById(req.user.userId)
 
-    if (!user || !user.faceRegistered) {
-      return res.status(400).json({ message: 'Face not registered' })
-    }
-
-    const isMatch = await compareFaces(faceData, user.faceData)
-
-    res.json({
-      verified: isMatch,
-      message: isMatch ? 'Face verified' : 'Face verification failed',
-    })
-  } catch (err) {
-    console.error('VERIFY FACE ERROR:', err)
-    res.status(500).json({ message: 'Server error' })
+  if (!user || !user.faceRegistered) {
+    return res.status(400).json({ message: 'Face not registered' })
   }
+
+  const isMatch = await compareFaces(faceData, user.faceData)
+
+  if (!isMatch) {
+    return res.status(401).json({ verified: false })
+  }
+
+  res.json({
+    verified: true,
+    message: 'Face verified',
+  })
 })
 
 // ---------------------------------------------------
-// GET /api/biometric/fingerprint-register-options
+// GET /api/biometric/register-options (fingerprint)
 // ---------------------------------------------------
-router.get('/fingerprint-register-options', auth, async (req, res) => {
-  try {
-    const user = await User.findById(req.user.userId)
-    if (!user) return res.status(404).json({ message: 'User not found' })
+router.get('/register-options', auth, async (req, res) => {
+  const user = await User.findById(req.user.userId)
+  if (!user) return res.status(404).json({ message: 'User not found' })
 
-    const rpID = getExpectedRPID()
-    
-    console.log('🔐 Fingerprint Registration Options:', {
-      rpID,
-      origin: getExpectedOrigin(),
-      userEmail: user.email
-    })
+  const options = await generateRegistrationOptions({
+    rpName: 'SecureATM',
+    rpID: getExpectedRPID(),
+    userID: isoUint8Array.fromUTF8String(user._id.toString()),
+    userName: user.email,
+    authenticatorSelection: {
+      authenticatorAttachment: 'platform',
+      userVerification: 'required',
+    },
+    excludeCredentials: user.biometricDevices.map((d) => ({
+      id: isoBase64URL.fromBuffer(d.credentialID),
+      type: 'public-key',
+    })),
+  })
 
-    const options = await generateRegistrationOptions({
-      rpName: 'SecureATM',
-      rpID: rpID,
-      userID: isoUint8Array.fromUTF8String(user._id.toString()),
-      userName: user.email,
-      authenticatorSelection: {
-        authenticatorAttachment: 'platform',
-        userVerification: 'required',
-      },
-      excludeCredentials:
-        user.biometricDevices?.map((dev) => ({
-          id: isoBase64URL.fromBuffer(dev.credentialID),
-          type: 'public-key',
-        })) || [],
-    })
+  user.webauthnChallenge = options.challenge
+  await user.save()
 
-    user.webauthnChallenge = options.challenge
-    await user.save()
-
-    res.json(options)
-  } catch (err) {
-    console.error('FINGERPRINT OPTIONS ERROR:', err)
-    res.status(500).json({ message: err.message })
-  }
+  res.json(options)
 })
 
 // ---------------------------------------------------
-// POST /api/biometric/fingerprint-register-verify
+// POST /api/biometric/register-verify (fingerprint)
 // ---------------------------------------------------
-router.post('/fingerprint-register-verify', auth, async (req, res) => {
-  try {
-    const user = await User.findById(req.user.userId)
-    if (!user) return res.status(404).json({ message: 'User not found' })
+router.post('/register-verify', auth, async (req, res) => {
+  const user = await User.findById(req.user.userId)
+  if (!user) return res.status(404).json({ message: 'User not found' })
 
-    const expectedOrigin = getExpectedOrigin()
-    const expectedRPID = getExpectedRPID()
+  const verification = await verifyRegistrationResponse({
+    response: req.body.registrationResult,
+    expectedChallenge: user.webauthnChallenge,
+    expectedOrigin: getExpectedOrigin(),
+    expectedRPID: getExpectedRPID(),
+    requireUserVerification: true,
+  })
 
-    console.log('🔐 Verifying Registration:', {
-      expectedOrigin,
-      expectedRPID,
-      challenge: user.webauthnChallenge
-    })
+  if (!verification.verified) {
+    return res.status(400).json({ message: 'Registration failed' })
+  }
 
-    const verification = await verifyRegistrationResponse({
-      response: req.body.registrationResult,
-      expectedChallenge: user.webauthnChallenge,
-      expectedOrigin: expectedOrigin,
-      expectedRPID: expectedRPID,
-      requireUserVerification: true,
-    })
+  const { credential } = verification.registrationInfo
 
-    if (!verification.verified) {
-      return res.status(400).json({ message: 'Registration verification failed' })
-    }
-
-    const { credential } = verification.registrationInfo
-
-    user.biometricDevices.push({
+  user.biometricDevices = [
+    {
       credentialID: Buffer.from(credential.id),
       credentialPublicKey: Buffer.from(credential.publicKey),
       counter: credential.counter,
-    })
+      transports: credential.transports || [],
+    },
+  ]
 
-    user.fingerprintRegistered = true
-    user.webauthnChallenge = null
-    await user.save()
+  user.webauthnChallenge = null
+  await user.save()
 
-    console.log('✅ Fingerprint registered successfully')
-
-    res.json({ success: true, message: 'Fingerprint registered successfully' })
-  } catch (err) {
-    console.error('❌ REGISTER VERIFY ERROR:', err)
-    res.status(500).json({ message: err.message })
-  }
+  res.json({ success: true })
 })
 
 // ---------------------------------------------------
-// GET /api/biometric/fingerprint-options
+// GET /api/biometric/auth-options
 // ---------------------------------------------------
-router.get('/fingerprint-options', auth, async (req, res) => {
-  try {
-    const user = await User.findById(req.user.userId)
-    if (!user || !user.biometricDevices.length) {
-      return res.status(400).json({ message: 'No biometric device registered' })
-    }
-
-    const options = await generateAuthenticationOptions({
-      rpID: getExpectedRPID(),
-      allowCredentials: user.biometricDevices.map((dev) => ({
-        id: isoBase64URL.fromBuffer(dev.credentialID),
-        type: 'public-key',
-      })),
-      userVerification: 'required',
-    })
-
-    user.webauthnChallenge = options.challenge
-    await user.save()
-
-    res.json(options)
-  } catch (err) {
-    console.error('FINGERPRINT AUTH OPTIONS ERROR:', err)
-    res.status(500).json({ message: err.message })
+router.get('/auth-options', auth, async (req, res) => {
+  const user = await User.findById(req.user.userId)
+  if (!user || user.biometricDevices.length === 0) {
+    return res.status(400).json({ message: 'No biometric registered' })
   }
+
+  const options = await generateAuthenticationOptions({
+    rpID: getExpectedRPID(),
+    allowCredentials: user.biometricDevices.map((d) => ({
+      id: isoBase64URL.fromBuffer(d.credentialID),
+      type: 'public-key',
+    })),
+    userVerification: 'required',
+  })
+
+  user.webauthnChallenge = options.challenge
+  await user.save()
+
+  res.json(options)
 })
 
 // ---------------------------------------------------
-// POST /api/biometric/verify-fingerprint
+// POST /api/biometric/auth-verify
 // ---------------------------------------------------
-router.post('/verify-fingerprint', auth, async (req, res) => {
-  try {
-    const user = await User.findById(req.user.userId)
-    if (!user) return res.status(404).json({ message: 'User not found' })
+router.post('/auth-verify', auth, async (req, res) => {
+  const user = await User.findById(req.user.userId)
+  if (!user) return res.status(404).json({ message: 'User not found' })
 
-    const authenticator = user.biometricDevices.find(
-      (d) => isoBase64URL.fromBuffer(d.credentialID) === req.body.authResult.rawId
-    )
+  const authenticator = user.biometricDevices.find(
+    (d) =>
+      isoBase64URL.fromBuffer(d.credentialID) ===
+      req.body.authResult.rawId
+  )
 
-    if (!authenticator) {
-      return res.status(400).json({ message: 'Device not registered' })
-    }
-
-    const verification = await verifyAuthenticationResponse({
-      response: req.body.authResult,
-      expectedChallenge: user.webauthnChallenge,
-      expectedOrigin: getExpectedOrigin(),
-      expectedRPID: getExpectedRPID(),
-      authenticator,
-      requireUserVerification: true,
-    })
-
-    if (!verification.verified) {
-      return res.status(401).json({ verified: false })
-    }
-
-    const biometricToken = jwt.sign(
-      { userId: user._id, type: 'fingerprint' },
-      process.env.JWT_SECRET,
-      { expiresIn: '2m' }
-    )
-
-    authenticator.counter = verification.authenticationInfo.newCounter
-    user.webauthnChallenge = null
-    await user.save()
-
-    res.json({
-      verified: true,
-      biometricToken,
-      message: 'Fingerprint verified',
-    })
-  } catch (err) {
-    console.error('VERIFY FINGERPRINT ERROR:', err)
-    res.status(500).json({ verified: false, message: 'Server error' })
+  if (!authenticator) {
+    return res.status(400).json({ message: 'Device not registered' })
   }
+
+  const verification = await verifyAuthenticationResponse({
+    response: req.body.authResult,
+    expectedChallenge: user.webauthnChallenge,
+    expectedOrigin: getExpectedOrigin(),
+    expectedRPID: getExpectedRPID(),
+    authenticator,
+    requireUserVerification: true,
+  })
+
+  if (!verification.verified) {
+    return res.status(401).json({ verified: false })
+  }
+
+  authenticator.counter =
+    verification.authenticationInfo.newCounter
+
+  user.webauthnChallenge = null
+  await user.save()
+
+  const biometricToken = jwt.sign(
+    { userId: user._id, type: 'fingerprint' },
+    process.env.JWT_SECRET,
+    { expiresIn: '2m' }
+  )
+
+  res.json({ verified: true, biometricToken })
 })
 
 export default router
-
-
-
-
-
-
-
-
 
 
 

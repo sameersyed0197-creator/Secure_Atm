@@ -6,7 +6,7 @@ import auth from '../middleware/auth.js'
 const router = express.Router()
 
 // ---------------------------------------------------
-// GET /api/settings/me  -> get current user
+// GET /api/settings/me
 // ---------------------------------------------------
 router.get('/me', auth, async (req, res) => {
   try {
@@ -14,10 +14,19 @@ router.get('/me', auth, async (req, res) => {
       '-passwordHash -upiPin'
     )
     if (!user) return res.status(404).json({ message: 'User not found' })
-    
+
     res.json({
-      ...user.toObject(),
-      biometricThreshold: user.securitySettings.biometricThreshold,
+      fullName: user.fullName,
+      email: user.email,
+      phone: user.phone,
+      city: user.city,
+      address: user.address,
+      balance: user.balance,
+      dailyLimit: user.dailyLimit,
+      securitySettings: {
+        biometricThreshold:
+          user.securitySettings?.biometricThreshold ?? 5000,
+      },
     })
   } catch (err) {
     console.error('GET ME ERROR:', err)
@@ -26,7 +35,7 @@ router.get('/me', auth, async (req, res) => {
 })
 
 // ---------------------------------------------------
-// PUT /api/settings/profile  -> update personal info
+// PUT /api/settings/profile
 // ---------------------------------------------------
 router.put('/profile', auth, async (req, res) => {
   try {
@@ -53,7 +62,7 @@ router.put('/profile', auth, async (req, res) => {
 })
 
 // ---------------------------------------------------
-// PUT /api/settings/password  -> change login password
+// PUT /api/settings/password
 // ---------------------------------------------------
 router.put('/password', auth, async (req, res) => {
   try {
@@ -78,7 +87,7 @@ router.put('/password', auth, async (req, res) => {
 })
 
 // ---------------------------------------------------
-// PUT /api/settings/transaction-pin  -> update UPI PIN
+// PUT /api/settings/transaction-pin
 // ---------------------------------------------------
 router.put('/transaction-pin', auth, async (req, res) => {
   try {
@@ -115,24 +124,22 @@ router.put('/transaction-pin', auth, async (req, res) => {
 })
 
 // ---------------------------------------------------
-// ✅ NEW: PUT /api/settings/biometric-threshold
-//    Update biometric verification threshold
+// PUT /api/settings/biometric-threshold
 // ---------------------------------------------------
 router.put('/biometric-threshold', auth, async (req, res) => {
   try {
-    const { biometricThreshold } = req.body
+    const threshold = Number(req.body.biometricThreshold)
 
-    // Validation
-    if (typeof biometricThreshold !== 'number' || biometricThreshold < 1000) {
-      return res.status(400).json({ 
-        message: 'Threshold must be at least ₹1000' 
-      })
+    if (Number.isNaN(threshold) || threshold < 1000) {
+      return res
+        .status(400)
+        .json({ message: 'Threshold must be at least ₹1000' })
     }
 
-    if (biometricThreshold > 100000) {
-      return res.status(400).json({ 
-        message: 'Threshold cannot exceed ₹1,00,000' 
-      })
+    if (threshold > 100000) {
+      return res
+        .status(400)
+        .json({ message: 'Threshold cannot exceed ₹1,00,000' })
     }
 
     const user = await User.findById(req.user.userId)
@@ -140,16 +147,13 @@ router.put('/biometric-threshold', auth, async (req, res) => {
       return res.status(404).json({ message: 'User not found' })
     }
 
-    // Update only the threshold
-    user.securitySettings.biometricThreshold = biometricThreshold
+    user.securitySettings.biometricThreshold = threshold
     await user.save()
-
-    console.log(`✅ User ${user.email} updated biometric threshold to ₹${biometricThreshold}`)
 
     res.json({
       success: true,
+      biometricThreshold: threshold,
       message: 'Biometric threshold updated successfully',
-      biometricThreshold: user.securitySettings.biometricThreshold,
     })
   } catch (err) {
     console.error('BIOMETRIC THRESHOLD UPDATE ERROR:', err)
@@ -157,65 +161,7 @@ router.put('/biometric-threshold', auth, async (req, res) => {
   }
 })
 
-// ---------------------------------------------------
-// ✅ GET /api/settings/security  -> get security rules
-// ---------------------------------------------------
-router.get('/security', auth, async (req, res) => {
-  try {
-    const user = await User.findById(req.user.userId).select('securitySettings')
-    if (!user) {
-      return res.status(404).json({ message: 'User not found' })
-    }
-
-    res.json(user.securitySettings)
-  } catch (err) {
-    console.error('GET SECURITY SETTINGS ERROR:', err)
-    res.status(500).json({ message: 'Server error' })
-  }
-})
-
-// ---------------------------------------------------
-// ✅ PUT /api/settings/security  -> update security rules
-// ---------------------------------------------------
-router.put('/security', auth, async (req, res) => {
-  try {
-    const { biometricThreshold, biometricMode } = req.body
-
-    if (typeof biometricThreshold !== 'number' || biometricThreshold < 0) {
-      return res
-        .status(400)
-        .json({ message: 'Invalid biometric threshold' })
-    }
-
-    if (!['fingerprint', 'face', 'both'].includes(biometricMode)) {
-      return res.status(400).json({ message: 'Invalid biometric mode' })
-    }
-
-    const user = await User.findById(req.user.userId)
-    if (!user) {
-      return res.status(404).json({ message: 'User not found' })
-    }
-
-    user.securitySettings = {
-      biometricThreshold,
-      biometricMode,
-    }
-
-    await user.save()
-
-    res.json({
-      success: true,
-      message: 'Security settings updated successfully',
-      securitySettings: user.securitySettings,
-    })
-  } catch (err) {
-    console.error('UPDATE SECURITY SETTINGS ERROR:', err)
-    res.status(500).json({ message: 'Server error' })
-  }
-})
-
 export default router
-
 
 
 
