@@ -384,9 +384,17 @@ import auth from '../middleware/auth.js'
 const router = express.Router()
 
 // WebAuthn Configuration
-const RP_ID = process.env.RP_ID || 'zlx30n8l-5173.inc1.devtunnels.ms'
-const RP_NAME = process.env.RP_NAME || 'SecureATM'
-const CLIENT_URL = process.env.CLIENT_URL || 'https://zlx30n8l-5173.inc1.devtunnels.ms'
+const IS_PROD = process.env.NODE_ENV === 'production'
+
+const RP_ID = IS_PROD
+  ? 'secure-atm-yzh1.onrender.com'
+  : 'localhost'
+
+const RP_NAME = 'SecureATM'
+
+const CLIENT_URL = IS_PROD
+  ? 'https://secure-atm-yzh1.onrender.com'
+  : 'http://localhost:5173'
 
 // ---------------------------------------------------
 // GET /api/fingerprint/status
