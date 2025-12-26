@@ -30,9 +30,10 @@ app.use(cors({
       'http://localhost:5173',
       'http://localhost:5000',
       'http://127.0.0.1:5173',
-      'https://zlx30n8l-5173.inc1.devtunnels.ms', // ✅ Frontend tunnel
-      'https://zlx30n8l-5000.inc1.devtunnels.ms', // ✅ Backend tunnel
-      /^https:\/\/.*\.devtunnels\.ms$/, // ✅ Allow all VS Code tunnels
+      'https://secure-atm-yzh1.onrender.com', // ✅ Render frontend
+      // 'https://zlx30n8l-5173.inc1.devtunnels.ms', // ✅ Frontend tunnel
+      // 'https://zlx30n8l-5000.inc1.devtunnels.ms', // ✅ Backend tunnel
+      // /^https:\/\/.*\.devtunnels\.ms$/, // ✅ Allow all VS Code tunnels
       process.env.FRONTEND_URL,
       process.env.CLIENT_URL,
     ].filter(Boolean)
