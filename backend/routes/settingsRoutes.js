@@ -1,3 +1,4 @@
+// routes/settingsRoutes.js - COMPLETE FIXED VERSION
 import express from 'express'
 import bcrypt from 'bcryptjs'
 import User from '../models/User.js'
@@ -6,7 +7,7 @@ import auth from '../middleware/auth.js'
 const router = express.Router()
 
 // ---------------------------------------------------
-// ✅ FIXED: GET /api/settings/me (Now returns faceData)
+// ✅ FIXED: GET /api/settings/me (Returns faceData properly)
 // ---------------------------------------------------
 router.get('/me', auth, async (req, res) => {
   try {
@@ -15,23 +16,26 @@ router.get('/me', auth, async (req, res) => {
     )
     if (!user) return res.status(404).json({ message: 'User not found' })
 
+    // ✅ Log to verify faceData exists
+    console.log('📤 Sending user data. faceData exists:', !!user.faceData, 'Length:', user.faceData?.length || 0)
+
     res.json({
       fullName: user.fullName,
       email: user.email,
-      phone: user.phone,
-      city: user.city,
-      address: user.address,
+      phone: user.phone || '',
+      city: user.city || '',
+      address: user.address || '',
       balance: user.balance,
       dailyLimit: user.dailyLimit,
       
-      // ✅ CRITICAL FIX: Add face data
+      // ✅ CRITICAL: Return faceData (base64 string or null)
       faceData: user.faceData || null,
       faceRegistered: user.faceRegistered || false,
       
       // Biometric threshold
       biometricThreshold: user.securitySettings?.biometricThreshold ?? 5000,
       
-      // Also keep the old structure for backward compatibility
+      // Backward compatibility
       securitySettings: {
         biometricThreshold: user.securitySettings?.biometricThreshold ?? 5000,
       },
@@ -51,9 +55,9 @@ router.put('/profile', auth, async (req, res) => {
 
     const update = {
       ...(fullName && { fullName }),
-      ...(phone && { phone }),
-      ...(city && { city }),
-      ...(address && { address }),
+      ...(phone !== undefined && { phone }),
+      ...(city !== undefined && { city }),
+      ...(address !== undefined && { address }),
     }
 
     const user = await User.findByIdAndUpdate(
@@ -62,7 +66,16 @@ router.put('/profile', auth, async (req, res) => {
       { new: true, runValidators: true }
     ).select('-passwordHash -upiPin')
 
-    res.json(user)
+    res.json({
+      message: 'Profile updated successfully',
+      user: {
+        fullName: user.fullName,
+        email: user.email,
+        phone: user.phone,
+        city: user.city,
+        address: user.address,
+      }
+    })
   } catch (err) {
     console.error('PROFILE UPDATE ERROR:', err)
     res.status(500).json({ message: 'Server error' })
@@ -75,6 +88,10 @@ router.put('/profile', auth, async (req, res) => {
 router.put('/password', auth, async (req, res) => {
   try {
     const { currentPassword, newPassword } = req.body
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ message: 'Both passwords are required' })
+    }
 
     const user = await User.findById(req.user.userId)
     if (!user) return res.status(404).json({ message: 'User not found' })
@@ -101,6 +118,10 @@ router.put('/transaction-pin', auth, async (req, res) => {
   try {
     const { currentPin, newPin } = req.body
 
+    if (!newPin) {
+      return res.status(400).json({ message: 'New PIN is required' })
+    }
+
     const user = await User.findById(req.user.userId)
     if (!user) return res.status(404).json({ message: 'User not found' })
 
@@ -124,7 +145,7 @@ router.put('/transaction-pin', auth, async (req, res) => {
     user.hasUpiPin = true
     await user.save()
 
-    res.json({ message: 'Transaction PIN updated' })
+    res.json({ message: 'Transaction PIN updated successfully' })
   } catch (err) {
     console.error('TRANSACTION PIN ERROR:', err)
     res.status(500).json({ message: 'Server error' })
@@ -132,7 +153,7 @@ router.put('/transaction-pin', auth, async (req, res) => {
 })
 
 // ---------------------------------------------------
-// ✅ FIXED: PUT /api/settings/biometric-threshold
+// ✅ PUT /api/settings/biometric-threshold
 // ---------------------------------------------------
 router.put('/biometric-threshold', auth, async (req, res) => {
   try {
@@ -141,7 +162,7 @@ router.put('/biometric-threshold', auth, async (req, res) => {
     if (Number.isNaN(threshold) || threshold < 1000) {
       return res
         .status(400)
-        .json({ message: 'Threshold must be at least ₹1000' })
+        .json({ message: 'Threshold must be at least ₹1,000' })
     }
 
     if (threshold > 100000) {
@@ -155,7 +176,7 @@ router.put('/biometric-threshold', auth, async (req, res) => {
       return res.status(404).json({ message: 'User not found' })
     }
 
-    // ✅ Initialize securitySettings if it doesn't exist
+    // Initialize securitySettings if it doesn't exist
     if (!user.securitySettings) {
       user.securitySettings = {}
     }
@@ -163,12 +184,12 @@ router.put('/biometric-threshold', auth, async (req, res) => {
     user.securitySettings.biometricThreshold = threshold
     await user.save()
 
-    console.log(`✅ Threshold updated to ₹${threshold} for ${user.email}`)
+    console.log(`✅ Threshold updated to ₹${threshold.toLocaleString('en-IN')} for ${user.email}`)
 
     res.json({
       success: true,
       biometricThreshold: threshold,
-      message: 'Biometric threshold updated successfully',
+      message: `Biometric threshold updated to ₹${threshold.toLocaleString('en-IN')}`,
     })
   } catch (err) {
     console.error('BIOMETRIC THRESHOLD UPDATE ERROR:', err)
@@ -177,7 +198,6 @@ router.put('/biometric-threshold', auth, async (req, res) => {
 })
 
 export default router
-
 
 
 

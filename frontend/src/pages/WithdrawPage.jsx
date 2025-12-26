@@ -1,1619 +1,11 @@
-// // import React, { useState, useRef, useEffect } from 'react'
-// // import { useNavigate } from 'react-router-dom'
-// // import api from '../services/api'
-// // import { browserSupportsWebAuthn, startAuthentication } from '@simplewebauthn/browser'
-
-// // function WithdrawPage() {
-// //   const navigate = useNavigate()
-// //   const videoRef = useRef(null)
-// //   const canvasRef = useRef(null)
-// //   const streamRef = useRef(null)
-
-// //   const [amount, setAmount] = useState('')
-// //   const [pin, setPin] = useState('')
-// //   const [step, setStep] = useState(1)
-// //   const [loading, setLoading] = useState(false)
-// //   const [error, setError] = useState('')
-// //   const [success, setSuccess] = useState('')
-// //   const [showCamera, setShowCamera] = useState(false)
-// //   const [capturedFace, setCapturedFace] = useState(null)
-// //   const [isCapturing, setIsCapturing] = useState(false)
-// //   const [biometricStatus, setBiometricStatus] = useState({
-// //     faceRegistered: false,
-// //     fingerprintRegistered: false,
-// //   })
-// //   const [fingerprintVerified, setFingerprintVerified] = useState(false)
-
-// //   // Check biometric status on mount
-// //   useEffect(() => {
-// //     const checkBiometricStatus = async () => {
-// //       try {
-// //         const token = localStorage.getItem('token')
-// //         if (!token) return
-
-// //         const response = await api.get('/biometric/status', {
-// //           headers: { Authorization: `Bearer ${token}` },
-// //         })
-// //         setBiometricStatus({
-// //           faceRegistered: response.data.faceRegistered || false,
-// //           fingerprintRegistered: response.data.webAuthnRegistered || false,
-// //         })
-// //       } catch (err) {
-// //         console.error('Error checking biometric status:', err)
-// //       }
-// //     }
-// //     checkBiometricStatus()
-// //   }, [])
-
-// //   // Start camera for face verification
-// //   const startCamera = async () => {
-// //     try {
-// //       setError('')
-// //       setShowCamera(true)
-// //       setIsCapturing(true)
-
-// //       // Request camera permissions
-// //       const stream = await navigator.mediaDevices.getUserMedia({
-// //         video: {
-// //           facingMode: 'user',
-// //           width: { ideal: 320 },
-// //           height: { ideal: 240 },
-// //         },
-// //         audio: false,
-// //       })
-
-// //       streamRef.current = stream
-
-// //       if (videoRef.current) {
-// //         videoRef.current.srcObject = stream
-// //         // Auto-capture after 2 seconds
-// //         setTimeout(() => {
-// //           captureFacePhoto()
-// //         }, 2000)
-// //       }
-// //     } catch (err) {
-// //       console.error('Camera error:', err)
-// //       setError('Camera permission denied. Please allow camera access.')
-// //       setShowCamera(false)
-// //       setIsCapturing(false)
-// //     }
-// //   }
-
-// //   // Capture face photo - OPTIMIZED FOR GEMINI
-// //   const captureFacePhoto = () => {
-// //     if (!videoRef.current || !canvasRef.current) {
-// //       setError('Camera not ready')
-// //       return
-// //     }
-
-// //     const video = videoRef.current
-// //     const canvas = canvasRef.current
-// //     const context = canvas.getContext('2d')
-
-// //     // Set canvas size - IMPORTANT: Same as registration
-// //     canvas.width = 320
-// //     canvas.height = 240
-
-// //     // Draw video frame to canvas
-// //     context.drawImage(video, 0, 0, canvas.width, canvas.height)
-
-// //     // Better quality, same as registration
-// //     const faceImage = canvas.toDataURL('image/jpeg', 0.7) // 70% quality
-
-// //     console.log('📸 Face captured for Gemini, length:', faceImage.length)
-
-// //     setCapturedFace(faceImage)
-
-// //     // Stop camera
-// //     if (streamRef.current) {
-// //       streamRef.current.getTracks().forEach((track) => track.stop())
-// //       streamRef.current = null
-// //     }
-
-// //     setShowCamera(false)
-// //     setIsCapturing(false)
-// //   }
-
-// //   // ✅ NEW: Real fingerprint verification using WebAuthn
-// //   const verifyFingerprint = async () => {
-// //     try {
-// //       // Check browser support
-// //       if (!browserSupportsWebAuthn()) {
-// //         setError('Biometric authentication not supported on this browser')
-// //         return false
-// //       }
-
-// //       setLoading(true)
-// //       setError('')
-
-// //       const token = localStorage.getItem('token')
-
-// //       // Step 1: Get authentication challenge from backend
-// //       const optionsResponse = await api.get('/biometric/fingerprint-options', {
-// //         headers: { Authorization: `Bearer ${token}` },
-// //       })
-
-// //       // Step 2: Trigger actual device biometric (Touch ID, Face ID, Windows Hello, etc.)
-// //       const authResult = await startAuthentication(optionsResponse.data)
-
-// //       // Step 3: Verify with backend
-// //       const verificationResponse = await api.post(
-// //         '/biometric/verify-fingerprint',
-// //         { authResult },
-// //         { headers: { Authorization: `Bearer ${token}` } }
-// //       )
-
-// //       setLoading(false)
-
-// //       if (verificationResponse.data.verified) {
-// //         setFingerprintVerified(true)
-// //         return true
-// //       } else {
-// //         setError('Biometric verification failed. Please try again.')
-// //         return false
-// //       }
-// //     } catch (err) {
-// //       console.error('Fingerprint error:', err)
-// //       setLoading(false)
-
-// //       if (err.name === 'NotAllowedError') {
-// //         setError('Biometric authentication was cancelled or denied')
-// //       } else if (err.response?.data?.message) {
-// //         setError(err.response.data.message)
-// //       } else {
-// //         setError('Biometric authentication failed. Please try again.')
-// //       }
-
-// //       return false
-// //     }
-// //   }
-
-// //   // Process withdrawal - UPDATED FOR GEMINI
-// //   const processWithdrawal = async () => {
-// //     setError('')
-// //     setSuccess('')
-// //     const amt = Number(amount)
-
-// //     if (!amt || amt <= 0) {
-// //       setError('Enter a valid amount.')
-// //       return
-// //     }
-
-// //     if (!pin || pin.length < 4) {
-// //       setError('Enter your transaction PIN.')
-// //       return
-// //     }
-
-// //     const token = localStorage.getItem('token')
-// //     if (!token) {
-// //       setError('Please login again.')
-// //       navigate('/login')
-// //       return
-// //     }
-
-// //     setLoading(true)
-
-// //     try {
-// //       const threshold = 5000
-// //       let biometricData = null
-// //       let biometricType = null
-
-// //       // If amount >= 5000, we need face verification
-// //       if (amt >= threshold) {
-// //         if (!capturedFace) {
-// //           setError('Please capture your face for verification.')
-// //           setLoading(false)
-// //           return
-// //         }
-
-// //         biometricData = capturedFace
-// //         biometricType = 'face'
-// //       }
-
-// //       // Send withdrawal request to backend (which calls Gemini)
-// //       console.log('🚀 Sending withdrawal request to backend...')
-
-// //       const response = await api.post(
-// //         '/wallet/withdraw',
-// //         {
-// //           amount: amt,
-// //           pin: pin,
-// //           biometricData: biometricData,
-// //           biometricType: biometricType,
-// //         },
-// //         {
-// //           headers: { Authorization: `Bearer ${token}` },
-// //         }
-// //       )
-
-// //       console.log('✅ Withdrawal successful:', response.data)
-
-// //       // Update balance in localStorage
-// //       localStorage.setItem('balance', String(response.data.balance))
-
-// //       setSuccess(
-// //         `₹${amt} withdrawn successfully! New balance: ₹${response.data.balance}`
-// //       )
-
-// //       // Reset form after 3 seconds
-// //       setTimeout(() => {
-// //         setAmount('')
-// //         setPin('')
-// //         setCapturedFace(null)
-// //         setStep(1)
-// //         setSuccess('')
-// //         setFingerprintVerified(false)
-// //         navigate('/dashboard')
-// //       }, 3000)
-// //     } catch (err) {
-// //       console.error('❌ Withdrawal error:', err.response?.data || err.message)
-
-// //       // Show user-friendly error
-// //       if (err.response?.data?.message) {
-// //         setError(err.response.data.message)
-// //       } else if (err.message.includes('Network Error')) {
-// //         setError('Network error. Please check your connection.')
-// //       } else {
-// //         setError('Withdrawal failed. Please try again.')
-// //       }
-
-// //       // Reset face capture on error
-// //       setCapturedFace(null)
-// //     } finally {
-// //       setLoading(false)
-// //     }
-// //   }
-
-// //   const handleNextFromAmount = () => {
-// //     setError('')
-// //     const amt = Number(amount)
-
-// //     if (!amt || amt <= 0) {
-// //       setError('Enter a valid amount greater than 0.')
-// //       return
-// //     }
-
-// //     const balance = Number(localStorage.getItem('balance') || 0)
-// //     if (amt > balance) {
-// //       setError(`Insufficient balance. Available: ₹${balance}`)
-// //       return
-// //     }
-
-// //     // For high value transactions, ensure both biometrics are registered
-// //     if (amt >= 5000) {
-// //       if (!biometricStatus.faceRegistered) {
-// //         setError(
-// //           'Withdrawals above ₹5000 require face registration. Please register your face in Settings first.'
-// //         )
-// //         return
-// //       }
-// //       if (!biometricStatus.fingerprintRegistered) {
-// //         setError(
-// //           'Withdrawals above ₹5000 require fingerprint registration. Please register your fingerprint in Settings first.'
-// //         )
-// //         return
-// //       }
-// //     }
-
-// //     setStep(2)
-// //   }
-
-// //   const handleNextFromPin = () => {
-// //     setError('')
-// //     if (!pin || pin.length < 4) {
-// //       setError('Enter your 4 or 6 digit transaction PIN.')
-// //       return
-// //     }
-
-// //     const amt = Number(amount)
-
-// //     if (amt >= 5000) {
-// //       // For high value withdrawals → fingerprint + face
-// //       setFingerprintVerified(false)
-// //       setCapturedFace(null)
-// //       setStep(3)
-// //     } else {
-// //       // For small amounts: PIN → direct withdraw
-// //       processWithdrawal()
-// //     }
-// //   }
-
-// //   const handleBack = () => {
-// //     if (step === 1) {
-// //       navigate('/dashboard')
-// //     } else {
-// //       setStep(step - 1)
-// //       setError('')
-// //       setShowCamera(false)
-// //       setCapturedFace(null)
-// //       setFingerprintVerified(false)
-// //       if (streamRef.current) {
-// //         streamRef.current.getTracks().forEach((track) => track.stop())
-// //         streamRef.current = null
-// //       }
-// //     }
-// //   }
-
-// //   // Cancel camera
-// //   const cancelCamera = () => {
-// //     if (streamRef.current) {
-// //       streamRef.current.getTracks().forEach((track) => track.stop())
-// //       streamRef.current = null
-// //     }
-// //     setShowCamera(false)
-// //     setIsCapturing(false)
-// //   }
-
-// //   // Retake photo
-// //   const retakePhoto = () => {
-// //     setCapturedFace(null)
-// //     startCamera()
-// //   }
-
-// //   return (
-// //     <div className="min-h-screen bg-[#0D0D0D] text-white flex flex-col">
-// //       {/* Top bar */}
-// //       <header className="border-b border-dashed border-gray-800 bg-black/40 backdrop-blur-xl">
-// //         <div className="max-w-xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
-// //           <div className="flex items-center gap-2.5">
-// //             <div className="h-8 w-8 rounded-xl bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center">
-// //               <svg
-// //                 className="h-4 w-4 text-black"
-// //                 fill="none"
-// //                 stroke="currentColor"
-// //                 strokeWidth="2.5"
-// //                 viewBox="0 0 24 24"
-// //               >
-// //                 <path
-// //                   strokeLinecap="round"
-// //                   strokeLinejoin="round"
-// //                   d="M12 6v6m0 0v6m0-6h6m-6 0H6"
-// //                 />
-// //               </svg>
-// //             </div>
-// //             <div>
-// //               <p className="text-xs text-gray-400 uppercase tracking-wide">
-// //                 SecureATM
-// //               </p>
-// //               <p className="text-sm font-semibold">Withdraw Cash</p>
-// //             </div>
-// //           </div>
-
-// //           <button
-// //             onClick={() => navigate('/dashboard')}
-// //             className="text-xs sm:text-sm px-3 py-1.5 rounded-full border border-dashed border-gray-700 text-gray-300 hover:border-emerald-500 hover:text-emerald-300 transition"
-// //           >
-// //             ← Back to Dashboard
-// //           </button>
-// //         </div>
-// //       </header>
-
-// //       {/* Main */}
-// //       <main className="flex-1 flex items-center justify-center px-4 py-6 sm:py-10">
-// //         <div className="w-full max-w-xl bg-[#101010] rounded-2xl border border-dashed border-gray-800 p-5 sm:p-6 shadow-2xl space-y-4">
-// //           {/* Step indicator */}
-// //           <div className="flex items-center justify-between text-xs text-gray-400 mb-1">
-// //             <span className={step >= 1 ? 'text-emerald-300' : ''}>
-// //               1. Amount
-// //             </span>
-// //             <span className={step >= 2 ? 'text-emerald-300' : ''}>2. PIN</span>
-// //             <span className={step >= 3 ? 'text-emerald-300' : ''}>
-// //               3. {Number(amount) >= 5000 ? 'Biometric Verify' : 'Confirm'}
-// //             </span>
-// //           </div>
-
-// //           {error && (
-// //             <div className="text-xs text-red-400 bg-red-500/10 border border-red-500/40 rounded-lg px-3 py-2">
-// //               ⚠️ {error}
-// //             </div>
-// //           )}
-
-// //           {success && (
-// //             <div className="text-xs text-emerald-300 bg-emerald-500/10 border border-emerald-500/40 rounded-lg px-3 py-2">
-// //               ✅ {success}
-// //             </div>
-// //           )}
-
-// //           {/* Step 1: Amount */}
-// //           {step === 1 && (
-// //             <div className="space-y-4 text-xs sm:text-sm">
-// //               <h1 className="text-lg sm:text-xl font-semibold">
-// //                 Enter withdrawal amount
-// //               </h1>
-// //               <p className="text-gray-400">
-// //                 Available balance: ₹{localStorage.getItem('balance') || '0'}
-// //               </p>
-
-// //               <div className="space-y-1.5">
-// //                 <label className="block text-gray-300">Amount (₹)</label>
-// //                 <input
-// //                   type="number"
-// //                   min="1"
-// //                   max={localStorage.getItem('balance') || 0}
-// //                   value={amount}
-// //                   onChange={(e) => setAmount(e.target.value)}
-// //                   className="w-full rounded-lg bg-[#151515] border border-dashed border-gray-700 px-3 py-2 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/60"
-// //                   placeholder="Enter amount"
-// //                 />
-// //               </div>
-
-// //               {Number(amount) >= 5000 && (
-// //                 <div className="text-xs text-amber-300 bg-amber-500/10 border border-dashed border-amber-500/30 rounded-lg p-3">
-// //                   ⚠️ Withdrawals above ₹5000 require biometric verification (fingerprint + face)
-// //                   {(!biometricStatus.faceRegistered || !biometricStatus.fingerprintRegistered) && (
-// //                     <p className="mt-1 text-amber-200">
-// //                       Please register your biometrics in Settings first.
-// //                     </p>
-// //                   )}
-// //                 </div>
-// //               )}
-// //             </div>
-// //           )}
-
-// //           {/* Step 2: PIN */}
-// //           {step === 2 && (
-// //             <div className="space-y-4 text-xs sm:text-sm">
-// //               <h1 className="text-lg sm:text-xl font-semibold">
-// //                 Confirm with PIN
-// //               </h1>
-// //               <p className="text-gray-400">
-// //                 Enter your transaction PIN to authorize this withdrawal.
-// //               </p>
-
-// //               <div className="space-y-1.5">
-// //                 <label className="block text-gray-300">Transaction PIN</label>
-// //                 <input
-// //                   type="password"
-// //                   maxLength={6}
-// //                   value={pin}
-// //                   onChange={(e) => setPin(e.target.value)}
-// //                   className="w-full rounded-lg bg-[#151515] border border-dashed border-gray-700 px-3 py-2 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/60"
-// //                   placeholder="Enter 4 or 6 digit PIN"
-// //                 />
-// //               </div>
-// //             </div>
-// //           )}
-
-// //           {/* Step 3: Biometric or Confirm */}
-// //           {step === 3 && (
-// //             <div className="space-y-4 text-xs sm:text-sm">
-// //               {Number(amount) >= 5000 ? (
-// //                 !fingerprintVerified ? (
-// //                   // ✅ REAL Fingerprint verification using WebAuthn
-// //                   <>
-// //                     <h1 className="text-lg sm:text-xl font-semibold">
-// //                       Fingerprint Verification
-// //                     </h1>
-// //                     <p className="text-gray-400 mb-4">
-// //                       Use your device's biometric sensor (Touch ID, Face ID, or fingerprint scanner) to authorize this withdrawal.
-// //                     </p>
-
-// //                     <div className="flex flex-col items-center gap-4 py-4">
-// //                       <div className="h-20 w-20 rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center shadow-lg shadow-emerald-500/30">
-// //                         <svg
-// //                           className="h-10 w-10 text-black"
-// //                           fill="none"
-// //                           stroke="currentColor"
-// //                           strokeWidth="1.8"
-// //                           viewBox="0 0 24 24"
-// //                         >
-// //                           <path
-// //                             strokeLinecap="round"
-// //                             strokeLinejoin="round"
-// //                             d="M12 11.5c1.657 0 3-1.343 3-3V8a3 3 0 10-6 0v.5c0 1.657 1.343 3 3 3z"
-// //                           />
-// //                           <path
-// //                             strokeLinecap="round"
-// //                             strokeLinejoin="round"
-// //                             d="M8.25 11.75A4.75 4.75 0 0113 6.97M5.5 15.25A7.25 7.25 0 0115 7.22M4 19.25A9.25 9.25 0 0117.5 8.5"
-// //                           />
-// //                         </svg>
-// //                       </div>
-// //                       <p className="text-[11px] text-gray-400 text-center max-w-xs">
-// //                         {loading ? 'Please complete biometric authentication on your device...' : 'Click below to authenticate using your device biometric'}
-// //                       </p>
-// //                       <button
-// //                         type="button"
-// //                         onClick={verifyFingerprint}
-// //                         disabled={loading}
-// //                         className="px-5 py-2 rounded-lg bg-gradient-to-r from-emerald-400 to-emerald-600 text-black font-semibold text-xs sm:text-sm hover:brightness-110 disabled:opacity-50"
-// //                       >
-// //                         {loading ? 'Authenticating...' : 'Authenticate with Biometric'}
-// //                       </button>
-// //                     </div>
-// //                   </>
-// //                 ) : (
-// //                   // AFTER fingerprint: Face verification (existing UI)
-// //                   <>
-// //                     <h1 className="text-lg sm:text-xl font-semibold">
-// //                       Face Verification
-// //                     </h1>
-// //                     <p className="text-gray-400">
-// //                       Look at the camera. Face will be automatically captured
-// //                       in 2 seconds.
-// //                     </p>
-
-// //                     {showCamera ? (
-// //                       <div className="space-y-3">
-// //                         <div className="relative rounded-lg overflow-hidden border-2 border-dashed border-amber-400 bg-black">
-// //                           <video
-// //                             ref={videoRef}
-// //                             autoPlay
-// //                             playsInline
-// //                             muted
-// //                             className="w-full h-48 object-cover"
-// //                           />
-// //                           <div className="absolute bottom-0 left-0 right-0 bg-black/70 py-1 px-2">
-// //                             <p className="text-[10px] text-white text-center">
-// //                               Capturing in 2 seconds...
-// //                             </p>
-// //                           </div>
-// //                         </div>
-// //                         <button
-// //                           onClick={cancelCamera}
-// //                           className="w-full px-4 py-2 text-xs rounded-lg bg-gray-800 text-gray-300 border border-dashed border-gray-700 hover:bg-gray-700"
-// //                         >
-// //                           Cancel
-// //                         </button>
-// //                       </div>
-// //                     ) : capturedFace ? (
-// //                       <div className="space-y-3">
-// //                         <div className="relative rounded-lg overflow-hidden border border-dashed border-amber-400/50 bg-black">
-// //                           <img
-// //                             src={capturedFace}
-// //                             alt="Captured face"
-// //                             className="w-full h-48 object-cover"
-// //                           />
-// //                           <div className="absolute bottom-0 left-0 right-0 bg-black/70 py-1 px-2">
-// //                             <p className="text-[10px] text-amber-300 text-center">
-// //                               Ready for verification with Gemini AI
-// //                             </p>
-// //                           </div>
-// //                         </div>
-// //                         <div className="flex gap-2">
-// //                           <button
-// //                             onClick={processWithdrawal}
-// //                             disabled={loading}
-// //                             className="flex-1 px-4 py-2 text-xs rounded-lg bg-gradient-to-r from-amber-400 to-amber-600 text-black font-semibold hover:brightness-110 transition disabled:opacity-50"
-// //                           >
-// //                             {loading ? (
-// //                               <span className="flex items-center justify-center gap-2">
-// //                                 <svg
-// //                                   className="animate-spin h-4 w-4"
-// //                                   fill="none"
-// //                                   viewBox="0 0 24 24"
-// //                                 >
-// //                                   <circle
-// //                                     className="opacity-25"
-// //                                     cx="12"
-// //                                     cy="12"
-// //                                     r="10"
-// //                                     stroke="currentColor"
-// //                                     strokeWidth="4"
-// //                                   />
-// //                                   <path
-// //                                     className="opacity-75"
-// //                                     fill="currentColor"
-// //                                     d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-// //                                   />
-// //                                 </svg>
-// //                                 Verifying with Gemini...
-// //                               </span>
-// //                             ) : (
-// //                               'Verify & Withdraw'
-// //                             )}
-// //                           </button>
-// //                           <button
-// //                             onClick={retakePhoto}
-// //                             disabled={loading}
-// //                             className="flex-1 px-4 py-2 text-xs rounded-lg bg-gray-800 text-gray-300 border border-dashed border-gray-700 hover:bg-gray-700 disabled:opacity-50"
-// //                           >
-// //                             Retake
-// //                           </button>
-// //                         </div>
-// //                       </div>
-// //                     ) : (
-// //                       <div className="text-center py-4">
-// //                         <div className="h-20 w-20 mx-auto rounded-full bg-gradient-to-br from-amber-300 to-amber-500 flex items-center justify-center mb-4">
-// //                           <svg
-// //                             className="h-10 w-10 text-black"
-// //                             fill="none"
-// //                             stroke="currentColor"
-// //                             strokeWidth="2"
-// //                             viewBox="0 0 24 24"
-// //                           >
-// //                             <path
-// //                               strokeLinecap="round"
-// //                               strokeLinejoin="round"
-// //                               d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z"
-// //                             />
-// //                           </svg>
-// //                         </div>
-// //                         <p className="text-[11px] text-gray-400 mb-4">
-// //                           Click below to start face verification
-// //                         </p>
-// //                         <button
-// //                           onClick={startCamera}
-// //                           className="px-5 py-2 rounded-lg bg-gradient-to-r from-amber-400 to-amber-600 text-black font-semibold text-sm hover:brightness-110"
-// //                         >
-// //                           Start Face Verification
-// //                         </button>
-// //                       </div>
-// //                     )}
-// //                   </>
-// //                 )
-// //               ) : (
-// //                 // amount < 5000 → Confirm Withdrawal
-// //                 <>
-// //                   <h1 className="text-lg sm:text-xl font-semibold">
-// //                     Confirm Withdrawal
-// //                   </h1>
-// //                   <div className="bg-[#151515] rounded-lg border border-dashed border-gray-700 p-4">
-// //                     <div className="space-y-2">
-// //                       <div className="flex justify-between">
-// //                         <span className="text-gray-400">Amount:</span>
-// //                         <span className="font-semibold">₹{amount}</span>
-// //                       </div>
-// //                       <div className="flex justify-between">
-// //                         <span className="text-gray-400">Service Charge:</span>
-// //                         <span className="text-emerald-300">₹0</span>
-// //                       </div>
-// //                       <div className="border-t border-dashed border-gray-700 pt-2 mt-2 flex justify-between">
-// //                         <span className="text-gray-400">Total:</span>
-// //                         <span className="font-semibold text-lg">
-// //                           ₹{amount}
-// //                         </span>
-// //                       </div>
-// //                     </div>
-// //                   </div>
-// //                 </>
-// //               )}
-// //             </div>
-// //           )}
-
-// //           {/* Actions */}
-// //           <div className="flex items-center justify-between pt-3">
-// //             <button
-// //               type="button"
-// //               onClick={handleBack}
-// //               className="px-4 py-2 rounded-lg border border-dashed border-gray-700 text-gray-300 text-xs sm:text-sm hover:border-gray-500 disabled:opacity-50"
-// //               disabled={loading || isCapturing}
-// //             >
-// //               {step === 1 ? 'Cancel' : 'Back'}
-// //             </button>
-
-// //             {step === 1 && (
-// //               <button
-// //                 type="button"
-// //                 onClick={handleNextFromAmount}
-// //                 disabled={!amount || Number(amount) <= 0}
-// //                 className="px-5 py-2 rounded-lg bg-gradient-to-r from-emerald-400 to-emerald-600 text-black font-semibold text-xs sm:text-sm hover:brightness-110 disabled:opacity-60"
-// //               >
-// //                 Continue
-// //               </button>
-// //             )}
-
-// //             {step === 2 && (
-// //               <button
-// //                 type="button"
-// //                 onClick={handleNextFromPin}
-// //                 disabled={!pin || pin.length < 4}
-// //                 className="px-5 py-2 rounded-lg bg-gradient-to-r from-emerald-400 to-emerald-600 text-black font-semibold text-xs sm:text-sm hover:brightness-110 disabled:opacity-60"
-// //               >
-// //                 Continue
-// //               </button>
-// //             )}
-
-// //             {step === 3 && Number(amount) < 5000 && (
-// //               <button
-// //                 type="button"
-// //                 onClick={processWithdrawal}
-// //                 disabled={loading}
-// //                 className="px-5 py-2 rounded-lg bg-gradient-to-r from-emerald-400 to-emerald-600 text-black font-semibold text-xs sm:text-sm hover:brightness-110 disabled:opacity-60"
-// //               >
-// //                 {loading ? 'Processing...' : 'Confirm Withdrawal'}
-// //               </button>
-// //             )}
-// //           </div>
-// //         </div>
-// //       </main>
-
-// //       {/* Hidden canvas */}
-// //       <canvas ref={canvasRef} className="hidden" />
-// //     </div>
-// //   )
-// // }
-
-// // export default WithdrawPage
  
 
-
-
-
-// // src/pages/WithdrawPage.jsx - FINAL FIXED VERSION
-// import React, { useState, useRef, useEffect } from 'react'
-// import { useNavigate } from 'react-router-dom'
-// import api from '../services/api'
-// import { browserSupportsWebAuthn, startAuthentication } from '@simplewebauthn/browser'
-
-// function WithdrawPage() {
-//   const navigate = useNavigate()
-//   const videoRef = useRef(null)
-//   const canvasRef = useRef(null)
-//   const streamRef = useRef(null)
-
-//   const [amount, setAmount] = useState('')
-//   const [pin, setPin] = useState('')
-//   const [step, setStep] = useState(1)
-//   const [loading, setLoading] = useState(false)
-//   const [error, setError] = useState('')
-//   const [success, setSuccess] = useState('')
-//   const [showCamera, setShowCamera] = useState(false)
-//   const [capturedFace, setCapturedFace] = useState(null)
-//   const [isCapturing, setIsCapturing] = useState(false)
-//   const [biometricStatus, setBiometricStatus] = useState({
-//     faceRegistered: false,
-//     fingerprintRegistered: false,
-//   })
-
-//   const [chosenBiometric, setChosenBiometric] = useState(null)
-//   const [biometricVerified, setBiometricVerified] = useState(false)
-//   const [biometricToken, setBiometricToken] = useState(null)
-//   const [threshold, setThreshold] = useState(5000)
-
-//   // Clean up camera on unmount
-//   useEffect(() => {
-//     return () => {
-//       if (streamRef.current) {
-//         streamRef.current.getTracks().forEach((track) => track.stop())
-//       }
-//     }
-//   }, [])
-
-//   // Check biometric status on mount
-//   useEffect(() => {
-//     const checkBiometricStatus = async () => {
-//       try {
-//         const token = localStorage.getItem('token')
-//         if (!token) return
-
-//         const response = await api.get('/biometric/status', {
-//           headers: { Authorization: `Bearer ${token}` },
-//         })
-
-//         // ✅ FIXED: Use the CORRECT field names from backend
-//         setBiometricStatus({
-//           faceRegistered: Boolean(response.data.faceRegistered ?? false),
-//           fingerprintRegistered: Boolean(response.data.fingerprintRegistered), // ✅ CHANGED FROM biometricRegistered
-//         })
-
-//         const settingsRes = await api.get('/settings/me', {
-//           headers: { Authorization: `Bearer ${token}` },
-//         })
-
-//         if (settingsRes.data.biometricThreshold !== undefined) {
-//           setThreshold(settingsRes.data.biometricThreshold)
-//         } else if (settingsRes.data.securitySettings?.biometricThreshold !== undefined) {
-//           setThreshold(settingsRes.data.securitySettings.biometricThreshold)
-//         }
-//       } catch (err) {
-//         console.error('Error checking biometric status:', err)
-//       }
-//     }
-//     checkBiometricStatus()
-//   }, [])
-
-//   // Start camera for face verification
-//   const startCamera = async () => {
-//     try {
-//       setError('')
-//       setShowCamera(true)
-//       setIsCapturing(true)
-
-//       const stream = await navigator.mediaDevices.getUserMedia({
-//         video: {
-//           facingMode: 'user',
-//           width: { ideal: 320 },
-//           height: { ideal: 240 },
-//         },
-//         audio: false,
-//       })
-
-//       streamRef.current = stream
-
-//       if (videoRef.current) {
-//         videoRef.current.srcObject = stream
-//         videoRef.current.onloadedmetadata = () => {
-//           setTimeout(captureFacePhoto, 2000)
-//         }
-//       }
-//     } catch (err) {
-//       console.error('Camera error:', err)
-//       setError('Camera permission denied. Please allow camera access.')
-//       setShowCamera(false)
-//       setIsCapturing(false)
-//     }
-//   }
-
-//   const captureFacePhoto = () => {
-//     if (!videoRef.current || !canvasRef.current) {
-//       setError('Camera not ready')
-//       return
-//     }
-
-//     const video = videoRef.current
-//     const canvas = canvasRef.current
-//     const context = canvas.getContext('2d')
-
-//     canvas.width = 320
-//     canvas.height = 240
-
-//     context.drawImage(video, 0, 0, canvas.width, canvas.height)
-
-//     const faceImage = canvas.toDataURL('image/jpeg', 0.7)
-
-//     console.log('📸 Face captured for verification, length:', faceImage.length)
-
-//     setCapturedFace(faceImage)
-
-//     if (streamRef.current) {
-//       streamRef.current.getTracks().forEach((track) => track.stop())
-//       streamRef.current = null
-//     }
-
-//     setShowCamera(false)
-//     setIsCapturing(false)
-//   }
-
-//   const verifyFingerprint = async () => {
-//     try {
-//       if (!browserSupportsWebAuthn()) {
-//         setError('Biometric authentication not supported')
-//         return null
-//       }
-
-//       setLoading(true)
-//       setError('')
-
-//       const token = localStorage.getItem('token')
-
-//       // ✅ FIX 1: Correct endpoint name
-//       const optionsRes = await api.get('/biometric/auth-options', { // ✅ CHANGED FROM authentication-options
-//         headers: { Authorization: `Bearer ${token}` },
-//       })
-
-//       // ✅ STEP 2: native biometric popup
-//       const authResult = await startAuthentication(optionsRes.data)
-
-//       // ✅ FIX 2: Correct endpoint AND parameter name
-//       const verifyRes = await api.post(
-//         '/biometric/auth-verify', // ✅ CHANGED FROM authentication-verify
-//         { authResult: authResult }, // ✅ CHANGED FROM authenticationResult
-//         { headers: { Authorization: `Bearer ${token}` } },
-//       )
-
-//       if (verifyRes.data.verified) {
-//         const tokenFromBackend = verifyRes.data.biometricToken
-//         setBiometricVerified(true)
-//         setBiometricToken(tokenFromBackend)
-//         return tokenFromBackend
-//       }
-
-//       setError('Biometric verification failed')
-//       return null
-//     } catch (err) {
-//       console.error(err)
-//       setError(err.response?.data?.message || 'Biometric failed')
-//       return null
-//     } finally {
-//       setLoading(false)
-//     }
-//   }
-
-//   const verifyFace = async () => {
-//     try {
-//       const token = localStorage.getItem('token')
-
-//       const res = await api.post(
-//         '/biometric/verify-face',
-//         { faceData: capturedFace },
-//         { headers: { Authorization: `Bearer ${token}` } },
-//       )
-
-//       return res.data.verified === true
-//     } catch  {
-//       setError('Face verification failed')
-//       return false
-//     }
-//   }
-
-//   // ✅ Process withdrawal with chosen biometric method (FINAL FIX)
-//   // ✅ FIX 3: accept token from caller to avoid race
-//   const processWithdrawal = async (passkeyToken = null) => {
-//     setError('')
-//     setSuccess('')
-//     const amt = Number(amount)
-
-//     if (!amt || amt <= 0) {
-//       setError('Enter a valid amount.')
-//       return
-//     }
-
-//     if (!pin || pin.length < 4) {
-//       setError('Enter your transaction PIN.')
-//       return
-//     }
-
-//     const token = localStorage.getItem('token')
-//     if (!token) {
-//       setError('Please login again.')
-//       navigate('/login')
-//       return
-//     }
-
-//     setLoading(true)
-
-//     try {
-//       const requestBody = {
-//         amount: amt,
-//         pin: pin,
-//       }
-
-//       // 🔐 BIOMETRIC ENFORCEMENT (CRITICAL FIX)
-//       if (amt >= threshold) {
-//         if (!chosenBiometric) {
-//           setError('Biometric verification required.')
-//           setLoading(false)
-//           return
-//         }
-
-//         // 👉 Fingerprint path
-//         if (chosenBiometric === 'fingerprint') {
-//           const tokenToUse = passkeyToken || biometricToken // ✅ use passed token first
-//           if (!tokenToUse) {
-//             setError('Fingerprint verification required.')
-//             setLoading(false)
-//             return
-//           }
-//           requestBody.biometricToken = tokenToUse
-//         }
-
-//         // 👉 Face path (Gemini verified)
-//         if (chosenBiometric === 'face') {
-//           if (!capturedFace) {
-//             setError('Face verification required.')
-//             setLoading(false)
-//             return
-//           }
-
-//           // ✅ FIX 2: actually verify face before proceeding
-//           const faceOk = await verifyFace()
-//           if (!faceOk) {
-//             setError('Face verification failed.')
-//             setLoading(false)
-//             return
-//           }
-
-//           // backend already verifies face via Gemini
-//           requestBody.faceData = capturedFace
-//         }
-//       }
-
-//       const response = await api.post('/wallet/withdraw', requestBody, {
-//         headers: { Authorization: `Bearer ${token}` },
-//       })
-
-//       localStorage.setItem('balance', String(response.data.balance))
-
-//       setSuccess(
-//         `₹${amt.toLocaleString('en-IN')} withdrawn successfully! New balance: ₹${response.data.balance.toLocaleString(
-//           'en-IN',
-//         )}`,
-//       )
-
-//       setTimeout(() => {
-//         setAmount('')
-//         setPin('')
-//         setCapturedFace(null)
-//         setStep(1)
-//         setBiometricVerified(false)
-//         setBiometricToken(null)
-//         setChosenBiometric(null)
-//         navigate('/dashboard')
-//       }, 3000)
-//     } catch (err) {
-//       setError(err.response?.data?.message || 'Withdrawal failed.')
-//       setCapturedFace(null)
-//       setBiometricToken(null)
-//       setBiometricVerified(false)
-//     } finally {
-//       setLoading(false)
-//     }
-//   }
-
-//   const handleNextFromAmount = () => {
-//     setError('')
-//     const amt = Number(amount)
-
-//     if (!amt || amt <= 0) {
-//       setError('Enter a valid amount greater than 0.')
-//       return
-//     }
-
-//     const balance = Number(localStorage.getItem('balance') || 0)
-//     if (amt > balance) {
-//       setError(`Insufficient balance. Available: ₹${balance.toLocaleString('en-IN')}`)
-//       return
-//     }
-
-//     if (amt >= threshold) {
-//       if (!biometricStatus.faceRegistered && !biometricStatus.fingerprintRegistered) {
-//         setError(
-//           `Withdrawals above ₹${threshold.toLocaleString(
-//             'en-IN',
-//           )} require biometric verification. Please register your fingerprint or face in Settings first.`,
-//         )
-//         return
-//       }
-//     }
-
-//     setStep(2)
-//   }
-
-//   const handleNextFromPin = () => {
-//     setError('')
-//     if (!pin || pin.length < 4) {
-//       setError('Enter your 4 or 6 digit transaction PIN.')
-//       return
-//     }
-
-//     const amt = Number(amount)
-
-//     if (amt >= threshold) {
-//       setBiometricVerified(false)
-//       setCapturedFace(null)
-//       setBiometricToken(null)
-//       setChosenBiometric(null)
-//       setStep(3)
-//     } else {
-//       processWithdrawal()
-//     }
-//   }
-
-//   const handleBack = () => {
-//     if (step === 1) {
-//       navigate('/dashboard')
-//     } else if (step === 3 && chosenBiometric !== null) {
-//       // ✅ FIX: If biometric method is chosen, go back to choice screen
-//       setChosenBiometric(null)
-//       setCapturedFace(null)
-//       setBiometricToken(null)
-//       setBiometricVerified(false)
-//       setError('')
-//       if (streamRef.current) {
-//         streamRef.current.getTracks().forEach((track) => track.stop())
-//         streamRef.current = null
-//       }
-//       setShowCamera(false)
-//     } else {
-//       setStep(step - 1)
-//       setError('')
-//       setShowCamera(false)
-//       setCapturedFace(null)
-//       setBiometricVerified(false)
-//       setBiometricToken(null)
-//       setChosenBiometric(null)
-//       if (streamRef.current) {
-//         streamRef.current.getTracks().forEach((track) => track.stop())
-//         streamRef.current = null
-//       }
-//     }
-//   }
-
-//   const cancelCamera = () => {
-//     if (streamRef.current) {
-//       streamRef.current.getTracks().forEach((track) => track.stop())
-//       streamRef.current = null
-//     }
-//     setShowCamera(false)
-//     setIsCapturing(false)
-//   }
-
-//   const retakePhoto = () => {
-//     setCapturedFace(null)
-//     startCamera()
-//   }
-
-//   return (
-//     <div className="min-h-screen bg-[#0D0D0D] text-white flex flex-col">
-//       {/* Top bar */}
-//       <header className="border-b border-dashed border-gray-800 bg-black/40 backdrop-blur-xl">
-//         <div className="max-w-xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
-//           <div className="flex items-center gap-2.5">
-//             <div className="h-8 w-8 rounded-xl bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center">
-//               <svg
-//                 className="h-4 w-4 text-black"
-//                 fill="none"
-//                 stroke="currentColor"
-//                 strokeWidth="2.5"
-//                 viewBox="0 0 24 24"
-//               >
-//                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-//               </svg>
-//             </div>
-//             <div>
-//               <p className="text-xs text-gray-400 uppercase tracking-wide">SecureATM</p>
-//               <p className="text-sm font-semibold">Withdraw Cash</p>
-//             </div>
-//           </div>
-
-//           <button
-//             onClick={() => navigate('/dashboard')}
-//             className="text-xs sm:text-sm px-3 py-1.5 rounded-full border border-dashed border-gray-700 text-gray-300 hover:border-emerald-500 hover:text-emerald-300 transition"
-//           >
-//             ← Back to Dashboard
-//           </button>
-//         </div>
-//       </header>
-
-//       {/* Main */}
-//       <main className="flex-1 flex items-center justify-center px-4 py-6 sm:py-10">
-//         <div className="w-full max-w-xl bg-[#101010] rounded-2xl border border-dashed border-gray-800 p-5 sm:p-6 shadow-2xl space-y-4">
-//           {/* Step indicator */}
-//           <div className="flex items-center justify-between text-xs text-gray-400 mb-1">
-//             <span className={step >= 1 ? 'text-emerald-300' : ''}>1. Amount</span>
-//             <span className={step >= 2 ? 'text-emerald-300' : ''}>2. PIN</span>
-//             <span className={step >= 3 ? 'text-emerald-300' : ''}>
-//               3. {Number(amount) >= threshold ? 'Biometric' : 'Confirm'}
-//             </span>
-//           </div>
-
-//           {error && (
-//             <div className="text-xs text-red-400 bg-red-500/10 border border-red-500/40 rounded-lg px-3 py-2">
-//               ⚠️ {error}
-//             </div>
-//           )}
-
-//           {success && (
-//             <div className="text-xs text-emerald-300 bg-emerald-500/10 border border-emerald-500/40 rounded-lg px-3 py-2">
-//               ✅ {success}
-//             </div>
-//           )}
-
-//           {/* Step 1: Amount */}
-//           {step === 1 && (
-//             <div className="space-y-4 text-xs sm:text-sm">
-//               <h1 className="text-lg sm:text-xl font-semibold">Enter withdrawal amount</h1>
-//               <p className="text-gray-400">
-//                 Available balance: ₹
-//                 {Number(localStorage.getItem('balance') || 0).toLocaleString('en-IN')}
-//               </p>
-
-//               <div className="space-y-1.5">
-//                 <label className="block text-gray-300">Amount (₹)</label>
-//                 <input
-//                   type="number"
-//                   min="1"
-//                   max={localStorage.getItem('balance') || 0}
-//                   value={amount}
-//                   onChange={(e) => setAmount(e.target.value)}
-//                   className="w-full rounded-lg bg-[#151515] border border-dashed border-gray-700 px-3 py-2 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/60"
-//                   placeholder="Enter amount"
-//                 />
-//               </div>
-
-//               {Number(amount) >= threshold && (
-//                 <div className="text-xs text-amber-300 bg-amber-500/10 border border-dashed border-amber-500/30 rounded-lg p-3">
-//                   🔒 Withdrawals above ₹{threshold.toLocaleString('en-IN')} require biometric verification
-//                   {!biometricStatus.faceRegistered && !biometricStatus.fingerprintRegistered && (
-//                     <p className="mt-1 text-amber-200">
-//                       Please register at least one biometric method in Settings first.
-//                     </p>
-//                   )}
-//                 </div>
-//               )}
-//             </div>
-//           )}
-
-//           {/* Step 2: PIN */}
-//           {step === 2 && (
-//             <div className="space-y-4 text-xs sm:text-sm">
-//               <h1 className="text-lg sm:text-xl font-semibold">Confirm with PIN</h1>
-//               <p className="text-gray-400">
-//                 Enter your transaction PIN to authorize this withdrawal.
-//               </p>
-
-//               <div className="space-y-1.5">
-//                 <label className="block text-gray-300">Transaction PIN</label>
-//                 <input
-//                   type="password"
-//                   maxLength={6}
-//                   value={pin}
-//                   onChange={(e) => setPin(e.target.value)}
-//                   className="w-full rounded-lg bg-[#151515] border border-dashed border-gray-700 px-3 py-2 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/60"
-//                   placeholder="Enter 4 or 6 digit PIN"
-//                 />
-//               </div>
-//             </div>
-//           )}
-
-//           {/* Step 3: Biometric Choice or Confirm */}
-//           {step === 3 && (
-//             <div className="space-y-4 text-xs sm:text-sm">
-//               {Number(amount) >= threshold ? (
-//                 !chosenBiometric ? (
-//                   // ✅ BIOMETRIC CHOICE SCREEN
-//                   <>
-//                     <h1 className="text-lg sm:text-xl font-semibold">
-//                       Choose Verification Method
-//                     </h1>
-//                     <p className="text-gray-400 mb-4">
-//                       Select how you'd like to verify this withdrawal.
-//                     </p>
-
-//                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-//                       {/* Fingerprint Option */}
-//                       {biometricStatus.fingerprintRegistered && (
-//                         <button
-//                           onClick={() => setChosenBiometric('fingerprint')}
-//                           className="p-5 rounded-xl border-2 border-dashed border-emerald-500/60 bg-[#141414] hover:bg-[#1a1a1a] transition text-center"
-//                         >
-//                           <div className="h-16 w-16 mx-auto rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center mb-3">
-//                             <svg
-//                               className="h-8 w-8 text-black"
-//                               fill="none"
-//                               stroke="currentColor"
-//                               strokeWidth="1.8"
-//                               viewBox="0 0 24 24"
-//                             >
-//                               <path
-//                                 strokeLinecap="round"
-//                                 strokeLinejoin="round"
-//                                 d="M12 11.5c1.657 0 3-1.343 3-3V8a3 3 0 10-6 0v.5c0 1.657 1.343 3 3 3z"
-//                               />
-//                               <path
-//                                 strokeLinecap="round"
-//                                 strokeLinejoin="round"
-//                                 d="M8.25 11.75A4.75 4.75 0 0113 6.97M5.5 15.25A7.25 7.25 0 0115 7.22M4 19.25A9.25 9.25 0 0117.5 8.5"
-//                               />
-//                             </svg>
-//                           </div>
-//                           <p className="font-semibold text-white mb-1">Fingerprint</p>
-//                           <p className="text-[10px] text-gray-400">
-//                             Use device biometric sensor
-//                           </p>
-//                         </button>
-//                       )}
-
-//                       {/* Face Option */}
-//                       {biometricStatus.faceRegistered && (
-//                         <button
-//                           onClick={() => setChosenBiometric('face')}
-//                           className="p-5 rounded-xl border-2 border-dashed border-amber-500/70 bg-[#141414] hover:bg-[#1a1a1a] transition text-center"
-//                         >
-//                           <div className="h-16 w-16 mx-auto rounded-full bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center mb-3">
-//                             <svg
-//                               className="h-8 w-8 text-black"
-//                               fill="none"
-//                               stroke="currentColor"
-//                               strokeWidth="2"
-//                               viewBox="0 0 24 24"
-//                             >
-//                               <path
-//                                 strokeLinecap="round"
-//                                 strokeLinejoin="round"
-//                                 d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-//                               />
-//                             </svg>
-//                           </div>
-//                           <p className="font-semibold text-white mb-1">Face Recognition</p>
-//                           <p className="text-[10px] text-gray-400">Verify with camera</p>
-//                         </button>
-//                       )}
-//                     </div>
-
-//                     {!biometricStatus.fingerprintRegistered &&
-//                       !biometricStatus.faceRegistered && (
-//                         <div className="text-center py-6 text-gray-400">
-//                           <p className="mb-2">No biometric methods registered</p>
-//                           <button
-//                             onClick={() => navigate('/settings')}
-//                             className="text-emerald-300 hover:underline"
-//                           >
-//                             Go to Settings →
-//                           </button>
-//                         </div>
-//                       )}
-//                   </>
-//                 ) : chosenBiometric === 'fingerprint' && !biometricVerified ? (
-//                   // ✅ FINGERPRINT VERIFICATION
-//                   <>
-//                     <h1 className="text-lg sm:text-xl font-semibold">
-//                       Fingerprint Verification
-//                     </h1>
-//                     <p className="text-gray-400 mb-4">
-//                       Use your device's biometric sensor to authorize this withdrawal.
-//                     </p>
-
-//                     <div className="flex flex-col items-center gap-4 py-4">
-//                       <div className="h-20 w-20 rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center shadow-lg shadow-emerald-500/30">
-//                         <svg
-//                           className="h-10 w-10 text-black"
-//                           fill="none"
-//                           stroke="currentColor"
-//                           strokeWidth="1.8"
-//                           viewBox="0 0 24 24"
-//                         >
-//                           <path
-//                             strokeLinecap="round"
-//                             strokeLinejoin="round"
-//                             d="M12 11.5c1.657 0 3-1.343 3-3V8a3 3 0 10-6 0v.5c0 1.657 1.343 3 3 3z"
-//                           />
-//                           <path
-//                             strokeLinecap="round"
-//                             strokeLinejoin="round"
-//                             d="M8.25 11.75A4.75 4.75 0 0113 6.97M5.5 15.25A7.25 7.25 0 0115 7.22M4 19.25A9.25 9.25 0 0117.5 8.5"
-//                           />
-//                         </svg>
-//                       </div>
-//                       <p className="text-[11px] text-gray-400 text-center max-w-xs">
-//                         {loading
-//                           ? 'Please complete biometric authentication on your device...'
-//                           : 'Click below to authenticate'}
-//                       </p>
-//                       <button
-//                         type="button"
-//                         onClick={async () => {
-//                           const token = await verifyFingerprint()
-//                           if (token) {
-//                             setTimeout(() => processWithdrawal(token), 200)
-//                           }
-//                         }}
-//                         disabled={loading}
-//                         className="px-5 py-2 rounded-lg bg-gradient-to-r from-emerald-400 to-emerald-600 text-black font-semibold text-xs sm:text-sm hover:brightness-110 disabled:opacity-50 flex items-center gap-2"
-//                       >
-//                         {loading ? (
-//                           <>
-//                             <svg
-//                               className="animate-spin h-4 w-4"
-//                               fill="none"
-//                               viewBox="0 0 24 24"
-//                             >
-//                               <circle
-//                                 className="opacity-25"
-//                                 cx="12"
-//                                 cy="12"
-//                                 r="10"
-//                                 stroke="currentColor"
-//                                 strokeWidth="4"
-//                               />
-//                               <path
-//                                 className="opacity-75"
-//                                 fill="currentColor"
-//                                 d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-//                               />
-//                             </svg>
-//                             Authenticating...
-//                           </>
-//                         ) : (
-//                           'Authenticate with Biometric'
-//                         )}
-//                       </button>
-//                     </div>
-//                   </>
-//                 ) : chosenBiometric === 'face' ? (
-//                   // ✅ FACE VERIFICATION
-//                   <>
-//                     <h1 className="text-lg sm:text-xl font-semibold">Face Verification</h1>
-//                     <p className="text-gray-400">
-//                       Look at the camera. Face will be captured in 2 seconds.
-//                     </p>
-
-//                     {showCamera ? (
-//                       <div className="space-y-3">
-//                         <div className="relative rounded-lg overflow-hidden border-2 border-dashed border-amber-400 bg-black">
-//                           <video
-//                             ref={videoRef}
-//                             autoPlay
-//                             playsInline
-//                             muted
-//                             className="w-full h-48 object-cover"
-//                           />
-//                           <div className="absolute bottom-0 left-0 right-0 bg-black/70 py-1 px-2">
-//                             <p className="text-[10px] text-white text-center">
-//                               Capturing in 2 seconds...
-//                             </p>
-//                           </div>
-//                         </div>
-//                         <button
-//                           onClick={cancelCamera}
-//                           className="w-full px-4 py-2 text-xs rounded-lg bg-gray-800 text-gray-300 border border-dashed border-gray-700 hover:bg-gray-700"
-//                         >
-//                           Cancel
-//                         </button>
-//                       </div>
-//                     ) : capturedFace ? (
-//                       <div className="space-y-3">
-//                         <div className="relative rounded-lg overflow-hidden border border-dashed border-amber-400/50 bg-black">
-//                           <img
-//                             src={capturedFace}
-//                             alt="Captured face"
-//                             className="w-full h-48 object-cover"
-//                           />
-//                           <div className="absolute bottom-0 left-0 right-0 bg-black/70 py-1 px-2">
-//                             <p className="text-[10px] text-amber-300 text-center">
-//                               Ready for verification
-//                             </p>
-//                           </div>
-//                         </div>
-//                         <div className="flex gap-2">
-//                           <button
-//                             onClick={() => processWithdrawal()}
-//                             disabled={loading}
-//                             className="flex-1 px-4 py-2 text-xs rounded-lg bg-gradient-to-r from-amber-400 to-amber-600 text-black font-semibold hover:brightness-110 transition disabled:opacity-50"
-//                           >
-//                             {loading ? (
-//                               <span className="flex items-center justify-center gap-2">
-//                                 <svg
-//                                   className="animate-spin h-4 w-4"
-//                                   fill="none"
-//                                   viewBox="0 0 24 24"
-//                                 >
-//                                   <circle
-//                                     className="opacity-25"
-//                                     cx="12"
-//                                     cy="12"
-//                                     r="10"
-//                                     stroke="currentColor"
-//                                     strokeWidth="4"
-//                                   />
-//                                   <path
-//                                     className="opacity-75"
-//                                     fill="currentColor"
-//                                     d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-//                                   />
-//                                 </svg>
-//                                 Verifying...
-//                               </span>
-//                             ) : (
-//                               'Verify & Withdraw'
-//                             )}
-//                           </button>
-//                           <button
-//                             onClick={retakePhoto}
-//                             disabled={loading}
-//                             className="flex-1 px-4 py-2 text-xs rounded-lg bg-gray-800 text-gray-300 border border-dashed border-gray-700 hover:bg-gray-700 disabled:opacity-50"
-//                           >
-//                             Retake
-//                           </button>
-//                         </div>
-//                       </div>
-//                     ) : (
-//                       <div className="text-center py-4">
-//                         <div className="h-20 w-20 mx-auto rounded-full bg-gradient-to-br from-amber-300 to-amber-500 flex items-center justify-center mb-4">
-//                           <svg
-//                             className="h-10 w-10 text-black"
-//                             fill="none"
-//                             stroke="currentColor"
-//                             strokeWidth="2"
-//                             viewBox="0 0 24 24"
-//                             >
-//                               <path
-//                                 strokeLinecap="round"
-//                                 strokeLinejoin="round"
-//                                 d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z"
-//                               />
-//                             </svg>
-//                         </div>
-//                         <p className="text-[11px] text-gray-400 mb-4">
-//                           Click below to start face verification
-//                         </p>
-//                         <button
-//                           onClick={startCamera}
-//                           className="px-5 py-2 rounded-lg bg-gradient-to-r from-amber-400 to-amber-600 text-black font-semibold text-sm hover:brightness-110"
-//                         >
-//                           Start Face Verification
-//                         </button>
-//                       </div>
-//                     )}
-//                   </>
-//                 ) : null
-//               ) : (
-//                 // amount < threshold → Confirm Withdrawal
-//                 <>
-//                   <h1 className="text-lg sm:text-xl font-semibold">Confirm Withdrawal</h1>
-//                   <div className="bg-[#151515] rounded-lg border border-dashed border-gray-700 p-4">
-//                     <div className="space-y-2">
-//                       <div className="flex justify-between">
-//                         <span className="text-gray-400">Amount:</span>
-//                         <span className="font-semibold">
-//                           ₹{Number(amount).toLocaleString('en-IN')}
-//                         </span>
-//                       </div>
-//                       <div className="flex justify-between">
-//                         <span className="text-gray-400">Service Charge:</span>
-//                         <span className="text-emerald-300">₹0</span>
-//                       </div>
-//                       <div className="border-t border-dashed border-gray-700 pt-2 mt-2 flex justify-between">
-//                         <span className="text-gray-400">Total:</span>
-//                         <span className="font-semibold text-lg">
-//                           ₹{Number(amount).toLocaleString('en-IN')}
-//                         </span>
-//                       </div>
-//                     </div>
-//                   </div>
-//                 </>
-//               )}
-//             </div>
-//           )}
-
-//           {/* Actions */}
-//           <div className="flex items-center justify-between pt-3">
-//             <button
-//               type="button"
-//               onClick={handleBack}
-//               className="px-4 py-2 rounded-lg border border-dashed border-gray-700 text-gray-300 text-xs sm:text-sm hover:border-gray-500 disabled:opacity-50"
-//               disabled={loading || isCapturing}
-//             >
-//               {step === 1 ? 'Cancel' : 'Back'}
-//             </button>
-
-//             {step === 1 && (
-//               <button
-//                 type="button"
-//                 onClick={handleNextFromAmount}
-//                 disabled={!amount || Number(amount) <= 0}
-//                 className="px-5 py-2 rounded-lg bg-gradient-to-r from-emerald-400 to-emerald-600 text-black font-semibold text-xs sm:text-sm hover:brightness-110 disabled:opacity-60"
-//               >
-//                 Continue
-//               </button>
-//             )}
-
-//             {step === 2 && (
-//               <button
-//                 type="button"
-//                 onClick={handleNextFromPin}
-//                 disabled={!pin || pin.length < 4}
-//                 className="px-5 py-2 rounded-lg bg-gradient-to-r from-emerald-400 to-emerald-600 text-black font-semibold text-xs sm:text-sm hover:brightness-110 disabled:opacity-60"
-//               >
-//                 Continue
-//               </button>
-//             )}
-
-//             {step === 3 && Number(amount) < threshold && (
-//               <button
-//                 type="button"
-//                 onClick={() => processWithdrawal()}
-//                 disabled={loading}
-//                 className="px-5 py-2 rounded-lg bg-gradient-to-r from-emerald-400 to-emerald-600 text-black font-semibold text-xs sm:text-sm hover:brightness-110 disabled:opacity-60"
-//               >
-//                 {loading ? 'Processing...' : 'Confirm Withdrawal'}
-//               </button>
-//             )}
-//           </div>
-//         </div>
-//       </main>
-
-//       {/* Hidden canvas */}
-//       <canvas ref={canvasRef} className="hidden" />
-//     </div>
-//   )
-// }
-
-// export default WithdrawPage
-
-
-
-
-
-
-
-
-// src/pages/WithdrawPage.jsx - COMPLETE FIXED VERSION
+// src/pages/WithdrawPage.jsx - COMPLETE WITH SUCCESS CARD
 import React, { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import api from '../services/api'
 import { browserSupportsWebAuthn, startAuthentication } from '@simplewebauthn/browser'
+
 
 function WithdrawPage() {
   const navigate = useNavigate()
@@ -1623,16 +15,14 @@ function WithdrawPage() {
 
   const [amount, setAmount] = useState('')
   const [pin, setPin] = useState('')
-  const [step, setStep] = useState(1)
+  const [step, setStep] = useState(1) // 1 = amount, 2 = PIN, 3 = biometric, 4 = success
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [success, setSuccess] = useState('')
   const [showCamera, setShowCamera] = useState(false)
   const [capturedFace, setCapturedFace] = useState(null)
   const [isCapturing, setIsCapturing] = useState(false)
-  
-  // ✅ FIX 1: Add balance state
   const [balance, setBalance] = useState(0)
+  const [withdrawData, setWithdrawData] = useState(null)
   
   const [biometricStatus, setBiometricStatus] = useState({
     faceRegistered: false,
@@ -1640,11 +30,10 @@ function WithdrawPage() {
   })
 
   const [chosenBiometric, setChosenBiometric] = useState(null)
-  const [biometricVerified, setBiometricVerified] = useState(false)
   const [biometricToken, setBiometricToken] = useState(null)
   const [threshold, setThreshold] = useState(5000)
 
-  // Clean up camera on unmount
+  // Cleanup camera on unmount
   useEffect(() => {
     return () => {
       if (streamRef.current) {
@@ -1653,7 +42,7 @@ function WithdrawPage() {
     }
   }, [])
 
-  // ✅ FIX 2: Fetch balance and biometric status on mount
+  // Load user data on mount
   useEffect(() => {
     const loadData = async () => {
       try {
@@ -1665,20 +54,19 @@ function WithdrawPage() {
 
         const headers = { Authorization: `Bearer ${token}` }
 
-        // ✅ Fetch fresh balance from API
         const balanceRes = await api.get('/wallet/balance', { headers })
         const currentBalance = balanceRes.data.balance
         setBalance(currentBalance)
-        localStorage.setItem('balance', String(currentBalance)) // Keep localStorage in sync
+        localStorage.setItem('balance', String(currentBalance))
 
-        // Fetch biometric status
-        const bioRes = await api.get('/biometric/status', { headers })
+        const faceRes = await api.get('/biometric/status', { headers })
+        const fpRes = await api.get('/fingerprint/status', { headers })
+
         setBiometricStatus({
-          faceRegistered: Boolean(bioRes.data.faceRegistered),
-          fingerprintRegistered: Boolean(bioRes.data.fingerprintRegistered),
+          faceRegistered: Boolean(faceRes.data.faceRegistered),
+          fingerprintRegistered: Boolean(fpRes.data.fingerprintRegistered),
         })
 
-        // Fetch threshold
         const settingsRes = await api.get('/settings/me', { headers })
         if (settingsRes.data.biometricThreshold !== undefined) {
           setThreshold(settingsRes.data.biometricThreshold)
@@ -1697,7 +85,6 @@ function WithdrawPage() {
     loadData()
   }, [navigate])
 
-  // ✅ FIX 3: Improved camera with proper video loading
   const startCamera = async () => {
     try {
       setError('')
@@ -1717,7 +104,6 @@ function WithdrawPage() {
       if (videoRef.current) {
         videoRef.current.srcObject = stream
 
-        // ✅ CRITICAL FIX: Wait for video to actually load
         await new Promise((resolve, reject) => {
           videoRef.current.onloadedmetadata = () => {
             videoRef.current.play()
@@ -1727,7 +113,6 @@ function WithdrawPage() {
           setTimeout(() => reject(new Error('Video loading timeout')), 10000)
         })
 
-        // ✅ Wait 3 seconds for user to position face
         setTimeout(() => {
           if (streamRef.current) {
             captureFacePhoto()
@@ -1755,7 +140,6 @@ function WithdrawPage() {
     }
   }
 
-  // ✅ FIX 4: Improved face capture with validation
   const captureFacePhoto = () => {
     try {
       const canvas = canvasRef.current
@@ -1766,7 +150,6 @@ function WithdrawPage() {
         return
       }
 
-      // ✅ Check if video has enough data
       if (video.readyState < video.HAVE_ENOUGH_DATA) {
         setError('Video not ready - please try again')
         setShowCamera(false)
@@ -1782,7 +165,6 @@ function WithdrawPage() {
 
       const faceImage = canvas.toDataURL('image/jpeg', 0.7)
 
-      // ✅ Validate captured image
       if (!faceImage || faceImage.length < 5000) {
         setError('Captured image is blank - please try again')
         setShowCamera(false)
@@ -1790,14 +172,7 @@ function WithdrawPage() {
         return
       }
 
-      if (!faceImage.startsWith('data:image/')) {
-        setError('Invalid image format')
-        setShowCamera(false)
-        setIsCapturing(false)
-        return
-      }
-
-      console.log('📸 Face captured, size:', faceImage.length)
+      console.log('📸 Face captured')
       setCapturedFace(faceImage)
 
       if (streamRef.current) {
@@ -1815,7 +190,6 @@ function WithdrawPage() {
     }
   }
 
-  // ✅ FIX 5: Improved fingerprint verification with better error handling
   const verifyFingerprint = async () => {
     try {
       if (!browserSupportsWebAuthn()) {
@@ -1823,69 +197,44 @@ function WithdrawPage() {
         return null
       }
 
-      setLoading(true)
       setError('')
-
       const token = localStorage.getItem('token')
       const headers = { Authorization: `Bearer ${token}` }
 
-      console.log('📱 Requesting fingerprint authentication...')
+      const optionsRes = await api.get('/fingerprint/init-auth', { headers })
+      const credential = await startAuthentication(optionsRes.data)
 
-      // Get auth options
-      const optionsRes = await api.get('/biometric/auth-options', { headers })
-      console.log('✅ Got auth options')
-
-      // Start browser authentication
-      const authResult = await startAuthentication(optionsRes.data)
-      console.log('✅ Browser authentication completed')
-
-      // Verify on backend
       const verifyRes = await api.post(
-        '/biometric/auth-verify',
-        { authResult },
+        '/fingerprint/verify-auth',
+        credential,
         { headers }
       )
 
-      if (verifyRes.data.verified) {
-        const tokenFromBackend = verifyRes.data.biometricToken
-        setBiometricVerified(true)
-        setBiometricToken(tokenFromBackend)
-        console.log('✅ Fingerprint verified')
-        return tokenFromBackend
+      if (verifyRes.data.verified && verifyRes.data.biometricToken) {
+        return verifyRes.data.biometricToken
       }
 
       setError('Biometric verification failed')
       return null
     } catch (err) {
       console.error('Fingerprint verification error:', err)
-
-      // ✅ User-friendly error messages
       if (err.name === 'NotAllowedError') {
-        setError('Fingerprint verification cancelled or not available on this device')
-      } else if (err.name === 'NotSupportedError') {
-        setError('Your device does not support fingerprint authentication')
-      } else if (err.message?.includes('No credentials available')) {
-        setError('No fingerprint registered on THIS device. Please register in Settings or use Face Recognition.')
+        setError('Fingerprint verification cancelled')
       } else {
-        setError(err.response?.data?.message || 'Fingerprint verification failed')
+        setError(err.response?.data?.error || 'Fingerprint verification failed')
       }
-      
       return null
-    } finally {
-      setLoading(false)
     }
   }
 
   const verifyFace = async () => {
     try {
       const token = localStorage.getItem('token')
-
       const res = await api.post(
         '/biometric/verify-face',
         { faceData: capturedFace },
         { headers: { Authorization: `Bearer ${token}` } }
       )
-
       return res.data.verified === true
     } catch (err) {
       console.error('Face verification error:', err)
@@ -1894,10 +243,8 @@ function WithdrawPage() {
     }
   }
 
-  // ✅ FIX 6: Process withdrawal with proper token handling
-  const processWithdrawal = async (passkeyToken = null) => {
+  const processWithdrawal = async (fingerprintToken = null) => {
     setError('')
-    setSuccess('')
     const amt = Number(amount)
 
     if (!amt || amt <= 0) {
@@ -1920,12 +267,8 @@ function WithdrawPage() {
     setLoading(true)
 
     try {
-      const requestBody = {
-        amount: amt,
-        pin: pin,
-      }
+      const requestBody = { amount: amt, pin: pin }
 
-      // 🔐 BIOMETRIC ENFORCEMENT
       if (amt >= threshold) {
         if (!chosenBiometric) {
           setError('Biometric verification required.')
@@ -1933,9 +276,8 @@ function WithdrawPage() {
           return
         }
 
-        // Fingerprint path
         if (chosenBiometric === 'fingerprint') {
-          const tokenToUse = passkeyToken || biometricToken
+          const tokenToUse = fingerprintToken || biometricToken
           if (!tokenToUse) {
             setError('Fingerprint verification required.')
             setLoading(false)
@@ -1944,7 +286,6 @@ function WithdrawPage() {
           requestBody.biometricToken = tokenToUse
         }
 
-        // Face path
         if (chosenBiometric === 'face') {
           if (!capturedFace) {
             setError('Face verification required.')
@@ -1952,14 +293,12 @@ function WithdrawPage() {
             return
           }
 
-          // ✅ Verify face before proceeding
           const faceOk = await verifyFace()
           if (!faceOk) {
             setError('Face verification failed.')
             setLoading(false)
             return
           }
-
           requestBody.faceData = capturedFace
         }
       }
@@ -1969,37 +308,39 @@ function WithdrawPage() {
       })
 
       const newBalance = response.data.balance
-      
-      // ✅ Update both state and localStorage
       setBalance(newBalance)
       localStorage.setItem('balance', String(newBalance))
 
-      setSuccess(
-        `₹${amt.toLocaleString('en-IN')} withdrawn successfully! New balance: ₹${newBalance.toLocaleString('en-IN')}`
-      )
+      setWithdrawData({
+        amount: amt,
+        balance: newBalance,
+        timestamp: new Date().toLocaleString(),
+        transactionId: response.data.transactionId || `TXN${Date.now()}`
+      })
 
-      setTimeout(() => {
-        setAmount('')
-        setPin('')
-        setCapturedFace(null)
-        setStep(1)
-        setBiometricVerified(false)
-        setBiometricToken(null)
-        setChosenBiometric(null)
-        navigate('/dashboard')
-      }, 3000)
+      setStep(4)
     } catch (err) {
-      console.error('Withdrawal error:', err)
+      console.error('❌ Withdrawal error:', err)
       setError(err.response?.data?.message || 'Withdrawal failed.')
       setCapturedFace(null)
       setBiometricToken(null)
-      setBiometricVerified(false)
     } finally {
       setLoading(false)
     }
   }
 
-  // ✅ FIX 7: Use state balance instead of localStorage
+  const handleFingerprintAuth = async () => {
+    setLoading(true)
+    const token = await verifyFingerprint()
+    setLoading(false)
+    
+    if (token) {
+      setBiometricToken(token)
+      await new Promise(resolve => setTimeout(resolve, 500))
+      await processWithdrawal(token)
+    }
+  }
+
   const handleNextFromAmount = () => {
     setError('')
     const amt = Number(amount)
@@ -2019,7 +360,7 @@ function WithdrawPage() {
         setError(
           `Withdrawals above ₹${threshold.toLocaleString(
             'en-IN'
-          )} require biometric verification. Please register your fingerprint or face in Settings first.`
+          )} require biometric verification. Please register in Settings first.`
         )
         return
       }
@@ -2038,7 +379,6 @@ function WithdrawPage() {
     const amt = Number(amount)
 
     if (amt >= threshold) {
-      setBiometricVerified(false)
       setCapturedFace(null)
       setBiometricToken(null)
       setChosenBiometric(null)
@@ -2055,7 +395,6 @@ function WithdrawPage() {
       setChosenBiometric(null)
       setCapturedFace(null)
       setBiometricToken(null)
-      setBiometricVerified(false)
       setError('')
       if (streamRef.current) {
         streamRef.current.getTracks().forEach((track) => track.stop())
@@ -2067,7 +406,6 @@ function WithdrawPage() {
       setError('')
       setShowCamera(false)
       setCapturedFace(null)
-      setBiometricVerified(false)
       setBiometricToken(null)
       setChosenBiometric(null)
       if (streamRef.current) {
@@ -2093,15 +431,19 @@ function WithdrawPage() {
     startCamera()
   }
 
+  const handleDone = () => {
+    navigate('/dashboard')
+  }
+
   return (
-    <div className="min-h-screen bg-[#0D0D0D] text-white flex flex-col">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-emerald-50 flex flex-col">
       {/* Top bar */}
-      <header className="border-b border-dashed border-gray-800 bg-black/40 backdrop-blur-xl">
+      <header className="border-b border-white/20 bg-white/70 backdrop-blur-2xl shadow-lg shadow-emerald-500/5">
         <div className="max-w-xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <div className="h-8 w-8 rounded-xl bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center">
+            <div className="h-8 w-8 rounded-xl bg-gradient-to-br from-emerald-500 via-emerald-600 to-teal-600 flex items-center justify-center shadow-xl shadow-emerald-500/40">
               <svg
-                className="h-4 w-4 text-black"
+                className="h-4 w-4 text-white"
                 fill="none"
                 stroke="currentColor"
                 strokeWidth="2.5"
@@ -2111,14 +453,14 @@ function WithdrawPage() {
               </svg>
             </div>
             <div>
-              <p className="text-xs text-gray-400 uppercase tracking-wide">SecureATM</p>
-              <p className="text-sm font-semibold">Withdraw Cash</p>
+              <p className="text-xs text-gray-500 uppercase tracking-wide font-semibold">SecureATM</p>
+              <p className="text-sm font-bold text-gray-900">Withdraw Cash</p>
             </div>
           </div>
 
           <button
             onClick={() => navigate('/dashboard')}
-            className="text-xs sm:text-sm px-3 py-1.5 rounded-full border border-dashed border-gray-700 text-gray-300 hover:border-emerald-500 hover:text-emerald-300 transition"
+            className="text-xs sm:text-sm px-4 py-2 rounded-full border-2 border-emerald-500 text-emerald-600 font-semibold hover:bg-emerald-50 hover:scale-105 transition-all duration-300"
           >
             ← Back to Dashboard
           </button>
@@ -2127,57 +469,60 @@ function WithdrawPage() {
 
       {/* Main */}
       <main className="flex-1 flex items-center justify-center px-4 py-6 sm:py-10">
-        <div className="w-full max-w-xl bg-[#101010] rounded-2xl border border-dashed border-gray-800 p-5 sm:p-6 shadow-2xl space-y-4">
-          {/* Step indicator */}
-          <div className="flex items-center justify-between text-xs text-gray-400 mb-1">
-            <span className={step >= 1 ? 'text-emerald-300' : ''}>1. Amount</span>
-            <span className={step >= 2 ? 'text-emerald-300' : ''}>2. PIN</span>
-            <span className={step >= 3 ? 'text-emerald-300' : ''}>
-              3. {Number(amount) >= threshold ? 'Biometric' : 'Confirm'}
-            </span>
-          </div>
-
-          {error && (
-            <div className="text-xs text-red-400 bg-red-500/10 border border-red-500/40 rounded-lg px-3 py-2">
-              ⚠️ {error}
+        <div className="w-full max-w-xl bg-white/60 backdrop-blur-sm rounded-3xl border-2 border-gray-200/50 p-5 sm:p-6 shadow-2xl shadow-emerald-500/10 space-y-4">
+          
+          {/* Step indicator - Hide on success */}
+          {step !== 4 && (
+            <div className="flex items-center justify-between text-xs text-gray-600 mb-1 font-medium">
+              <span className={step >= 1 ? 'text-emerald-600 font-bold' : ''}>1. Amount</span>
+              <span className={step >= 2 ? 'text-emerald-600 font-bold' : ''}>2. PIN</span>
+              <span className={step >= 3 ? 'text-emerald-600 font-bold' : ''}>
+                3. {Number(amount) >= threshold ? 'Biometric' : 'Confirm'}
+              </span>
             </div>
           )}
 
-          {success && (
-            <div className="text-xs text-emerald-300 bg-emerald-500/10 border border-emerald-500/40 rounded-lg px-3 py-2">
-              ✅ {success}
+          {error && (
+            <div className="p-4 rounded-xl bg-red-50/80 backdrop-blur-sm border border-red-200/60 shadow-lg">
+              <div className="flex items-center gap-2">
+                <svg className="h-5 w-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span className="text-sm font-medium text-red-800">{error}</span>
+              </div>
             </div>
           )}
 
           {/* Step 1: Amount */}
           {step === 1 && (
             <div className="space-y-4 text-xs sm:text-sm">
-              <h1 className="text-lg sm:text-xl font-semibold">Enter withdrawal amount</h1>
-              <p className="text-gray-400">
-                Available balance: ₹{balance.toLocaleString('en-IN')}
+              <h1 className="text-lg sm:text-xl font-extrabold text-gray-900">Enter withdrawal amount</h1>
+              <p className="text-gray-600">
+                Available balance: <span className="font-bold text-emerald-600">₹{balance.toLocaleString('en-IN')}</span>
               </p>
 
-              <div className="space-y-1.5">
-                <label className="block text-gray-300">Amount (₹)</label>
+              <div className="space-y-2">
+                <label className="block text-sm font-semibold text-gray-700">Amount (₹)</label>
                 <input
                   type="number"
                   min="1"
                   max={balance}
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
-                  className="w-full rounded-lg bg-[#151515] border border-dashed border-gray-700 px-3 py-2 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/60"
+                  className="w-full rounded-xl bg-white/60 backdrop-blur-sm border-2 border-gray-200/50 px-4 py-3 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent shadow-sm hover:border-emerald-300/50 transition-all duration-300"
                   placeholder="Enter amount"
                 />
               </div>
 
               {Number(amount) >= threshold && (
-                <div className="text-xs text-amber-300 bg-amber-500/10 border border-dashed border-amber-500/30 rounded-lg p-3">
-                  🔒 Withdrawals above ₹{threshold.toLocaleString('en-IN')} require biometric verification
-                  {!biometricStatus.faceRegistered && !biometricStatus.fingerprintRegistered && (
-                    <p className="mt-1 text-amber-200">
-                      Please register at least one biometric method in Settings first.
-                    </p>
-                  )}
+                <div className="flex items-start gap-3 p-4 rounded-xl bg-amber-50/50 border border-amber-200/40">
+                  <svg className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                  </svg>
+                  <div className="text-xs text-gray-700 leading-relaxed">
+                    <p className="font-bold text-amber-700 mb-1">Biometric verification required</p>
+                    <p>Withdrawals above ₹{threshold.toLocaleString('en-IN')} need additional security verification</p>
+                  </div>
                 </div>
               )}
             </div>
@@ -2186,260 +531,168 @@ function WithdrawPage() {
           {/* Step 2: PIN */}
           {step === 2 && (
             <div className="space-y-4 text-xs sm:text-sm">
-              <h1 className="text-lg sm:text-xl font-semibold">Confirm with PIN</h1>
-              <p className="text-gray-400">
+              <h1 className="text-lg sm:text-xl font-extrabold text-gray-900">Confirm with PIN</h1>
+              <p className="text-gray-600">
                 Enter your transaction PIN to authorize this withdrawal.
               </p>
 
-              <div className="space-y-1.5">
-                <label className="block text-gray-300">Transaction PIN</label>
+              <div className="space-y-2">
+                <label className="block text-sm font-semibold text-gray-700">Transaction PIN</label>
                 <input
                   type="password"
                   maxLength={6}
                   value={pin}
                   onChange={(e) => setPin(e.target.value)}
-                  className="w-full rounded-lg bg-[#151515] border border-dashed border-gray-700 px-3 py-2 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/60"
+                  className="w-full rounded-xl bg-white/60 backdrop-blur-sm border-2 border-gray-200/50 px-4 py-3 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent shadow-sm hover:border-emerald-300/50 transition-all duration-300"
                   placeholder="Enter 4 or 6 digit PIN"
                 />
               </div>
             </div>
           )}
 
-          {/* Step 3: Biometric Choice or Confirm */}
+          {/* Step 3: Biometric or Confirm */}
           {step === 3 && (
             <div className="space-y-4 text-xs sm:text-sm">
               {Number(amount) >= threshold ? (
                 !chosenBiometric ? (
-                  // BIOMETRIC CHOICE SCREEN
+                  /* BIOMETRIC CHOICE */
                   <>
-                    <h1 className="text-lg sm:text-xl font-semibold">
+                    <h1 className="text-lg sm:text-xl font-extrabold text-gray-900">
                       Choose Verification Method
                     </h1>
-                    <p className="text-gray-400 mb-4">
+                    <p className="text-gray-600 mb-4">
                       Select how you'd like to verify this withdrawal.
                     </p>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      {/* Fingerprint Option */}
                       {biometricStatus.fingerprintRegistered && (
                         <button
                           onClick={() => setChosenBiometric('fingerprint')}
-                          className="p-5 rounded-xl border-2 border-dashed border-emerald-500/60 bg-[#141414] hover:bg-[#1a1a1a] transition text-center"
+                          className="p-5 rounded-2xl border-2 border-emerald-200/50 bg-gradient-to-br from-emerald-50 to-teal-50 hover:border-emerald-300 hover:scale-105 transition-all duration-300 text-center shadow-lg"
                         >
-                          <div className="h-16 w-16 mx-auto rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center mb-3">
+                          <div className="h-16 w-16 mx-auto rounded-full bg-gradient-to-br from-emerald-500 via-emerald-600 to-teal-600 flex items-center justify-center mb-3 shadow-xl shadow-emerald-500/40">
                             <svg
-                              className="h-8 w-8 text-black"
+                              className="h-8 w-8 text-white"
                               fill="none"
                               stroke="currentColor"
                               strokeWidth="1.8"
                               viewBox="0 0 24 24"
                             >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                d="M12 11.5c1.657 0 3-1.343 3-3V8a3 3 0 10-6 0v.5c0 1.657 1.343 3 3 3z"
-                              />
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                d="M8.25 11.75A4.75 4.75 0 0113 6.97M5.5 15.25A7.25 7.25 0 0115 7.22M4 19.25A9.25 9.25 0 0117.5 8.5"
-                              />
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M12 11.5c1.657 0 3-1.343 3-3V8a3 3 0 10-6 0v.5c0 1.657 1.343 3 3 3z" />
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 11.75A4.75 4.75 0 0113 6.97M5.5 15.25A7.25 7.25 0 0115 7.22M4 19.25A9.25 9.25 0 0117.5 8.5" />
                             </svg>
                           </div>
-                          <p className="font-semibold text-white mb-1">Fingerprint</p>
-                          <p className="text-[10px] text-gray-400">
-                            Use device biometric sensor
-                          </p>
+                          <p className="font-bold text-gray-900 mb-1">Fingerprint</p>
+                          <p className="text-[10px] text-gray-600">Use device biometric sensor</p>
                         </button>
                       )}
 
-                      {/* Face Option */}
                       {biometricStatus.faceRegistered && (
                         <button
                           onClick={() => setChosenBiometric('face')}
-                          className="p-5 rounded-xl border-2 border-dashed border-amber-500/70 bg-[#141414] hover:bg-[#1a1a1a] transition text-center"
+                          className="p-5 rounded-2xl border-2 border-amber-200/50 bg-gradient-to-br from-amber-50 to-orange-50 hover:border-amber-300 hover:scale-105 transition-all duration-300 text-center shadow-lg"
                         >
-                          <div className="h-16 w-16 mx-auto rounded-full bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center mb-3">
+                          <div className="h-16 w-16 mx-auto rounded-full bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center mb-3 shadow-xl shadow-amber-500/40">
                             <svg
-                              className="h-8 w-8 text-black"
+                              className="h-8 w-8 text-white"
                               fill="none"
                               stroke="currentColor"
                               strokeWidth="2"
                               viewBox="0 0 24 24"
                             >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                              />
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                             </svg>
                           </div>
-                          <p className="font-semibold text-white mb-1">Face Recognition</p>
-                          <p className="text-[10px] text-gray-400">Verify with camera</p>
+                          <p className="font-bold text-gray-900 mb-1">Face Recognition</p>
+                          <p className="text-[10px] text-gray-600">Verify with camera</p>
                         </button>
                       )}
                     </div>
-
-                    {!biometricStatus.fingerprintRegistered &&
-                      !biometricStatus.faceRegistered && (
-                        <div className="text-center py-6 text-gray-400">
-                          <p className="mb-2">No biometric methods registered</p>
-                          <button
-                            onClick={() => navigate('/settings')}
-                            className="text-emerald-300 hover:underline"
-                          >
-                            Go to Settings →
-                          </button>
-                        </div>
-                      )}
                   </>
-                ) : chosenBiometric === 'fingerprint' && !biometricVerified ? (
-                  // FINGERPRINT VERIFICATION
+                ) : chosenBiometric === 'fingerprint' ? (
+                  /* FINGERPRINT VERIFICATION */
                   <>
-                    <h1 className="text-lg sm:text-xl font-semibold">
+                    <h1 className="text-lg sm:text-xl font-extrabold text-gray-900">
                       Fingerprint Verification
                     </h1>
-                    <p className="text-gray-400 mb-4">
+                    <p className="text-gray-600 mb-4">
                       Use your device's biometric sensor to authorize this withdrawal.
                     </p>
 
                     <div className="flex flex-col items-center gap-4 py-4">
-                      <div className="h-20 w-20 rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center shadow-lg shadow-emerald-500/30">
-                        <svg
-                          className="h-10 w-10 text-black"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="1.8"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            d="M12 11.5c1.657 0 3-1.343 3-3V8a3 3 0 10-6 0v.5c0 1.657 1.343 3 3 3z"
-                          />
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            d="M8.25 11.75A4.75 4.75 0 0113 6.97M5.5 15.25A7.25 7.25 0 0115 7.22M4 19.25A9.25 9.25 0 0117.5 8.5"
-                          />
+                      <div className="h-20 w-20 rounded-full bg-gradient-to-br from-emerald-500 via-emerald-600 to-teal-600 flex items-center justify-center shadow-2xl shadow-emerald-500/40 animate-pulse">
+                        <svg className="h-10 w-10 text-white" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 11.5c1.657 0 3-1.343 3-3V8a3 3 0 10-6 0v.5c0 1.657 1.343 3 3 3z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 11.75A4.75 4.75 0 0113 6.97M5.5 15.25A7.25 7.25 0 0115 7.22M4 19.25A9.25 9.25 0 0117.5 8.5" />
                         </svg>
                       </div>
-                      <p className="text-[11px] text-gray-400 text-center max-w-xs">
-                        {loading
-                          ? 'Please complete biometric authentication on your device...'
-                          : 'Click below to authenticate'}
+                      <p className="text-xs text-gray-600 text-center max-w-xs">
+                        {loading ? 'Processing biometric authentication...' : 'Click below to authenticate with your fingerprint'}
                       </p>
                       <button
                         type="button"
-                        onClick={async () => {
-                          const token = await verifyFingerprint()
-                          if (token) {
-                            setTimeout(() => processWithdrawal(token), 200)
-                          }
-                        }}
+                        onClick={handleFingerprintAuth}
                         disabled={loading}
-                        className="px-5 py-2 rounded-lg bg-gradient-to-r from-emerald-400 to-emerald-600 text-black font-semibold text-xs sm:text-sm hover:brightness-110 disabled:opacity-50 flex items-center gap-2"
+                        className="px-6 py-3 rounded-full bg-gradient-to-r from-emerald-500 via-emerald-600 to-teal-600 text-white font-bold text-sm shadow-xl shadow-emerald-500/40 hover:shadow-2xl hover:shadow-emerald-500/60 hover:scale-105 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
                       >
                         {loading ? (
-                          <>
-                            <svg
-                              className="animate-spin h-4 w-4"
-                              fill="none"
-                              viewBox="0 0 24 24"
-                            >
-                              <circle
-                                className="opacity-25"
-                                cx="12"
-                                cy="12"
-                                r="10"
-                                stroke="currentColor"
-                                strokeWidth="4"
-                              />
-                              <path
-                                className="opacity-75"
-                                fill="currentColor"
-                                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                              />
+                          <span className="flex items-center gap-2">
+                            <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                             </svg>
-                            Authenticating...
-                          </>
+                            Processing...
+                          </span>
                         ) : (
-                          'Authenticate with Biometric'
+                          'Authenticate & Withdraw'
                         )}
                       </button>
                     </div>
                   </>
                 ) : chosenBiometric === 'face' ? (
-                  // FACE VERIFICATION
+                  /* FACE VERIFICATION */
                   <>
-                    <h1 className="text-lg sm:text-xl font-semibold">Face Verification</h1>
-                    <p className="text-gray-400">
+                    <h1 className="text-lg sm:text-xl font-extrabold text-gray-900">Face Verification</h1>
+                    <p className="text-gray-600">
                       Look at the camera. Face will be captured automatically in 3 seconds.
                     </p>
 
                     {showCamera ? (
                       <div className="space-y-3">
-                        <div className="relative rounded-lg overflow-hidden border-2 border-dashed border-amber-400 bg-black">
-                          <video
-                            ref={videoRef}
-                            autoPlay
-                            playsInline
-                            muted
-                            className="w-full h-48 object-cover"
-                          />
-                          <div className="absolute bottom-0 left-0 right-0 bg-black/70 py-1 px-2">
-                            <p className="text-[10px] text-white text-center">
+                        <div className="relative rounded-2xl overflow-hidden border-2 border-amber-400 bg-black shadow-xl">
+                          <video ref={videoRef} autoPlay playsInline muted className="w-full h-48 object-cover" />
+                          <div className="absolute bottom-0 left-0 right-0 bg-black/70 py-2 px-3">
+                            <p className="text-xs text-white text-center font-medium">
                               Capturing automatically in 3 seconds...
                             </p>
                           </div>
                         </div>
                         <button
                           onClick={cancelCamera}
-                          className="w-full px-4 py-2 text-xs rounded-lg bg-gray-800 text-gray-300 border border-dashed border-gray-700 hover:bg-gray-700"
+                          className="w-full px-4 py-2.5 text-sm rounded-full bg-gray-100 text-gray-700 border-2 border-gray-300 hover:bg-gray-200 font-semibold transition-all"
                         >
                           Cancel
                         </button>
                       </div>
                     ) : capturedFace ? (
                       <div className="space-y-3">
-                        <div className="relative rounded-lg overflow-hidden border border-dashed border-amber-400/50 bg-black">
-                          <img
-                            src={capturedFace}
-                            alt="Captured face"
-                            className="w-full h-48 object-cover"
-                          />
-                          <div className="absolute bottom-0 left-0 right-0 bg-black/70 py-1 px-2">
-                            <p className="text-[10px] text-amber-300 text-center">
-                              Ready for verification
-                            </p>
+                        <div className="relative rounded-2xl overflow-hidden border-2 border-amber-400/50 bg-black shadow-xl">
+                          <img src={capturedFace} alt="Captured face" className="w-full h-48 object-cover" />
+                          <div className="absolute bottom-0 left-0 right-0 bg-black/70 py-2 px-3">
+                            <p className="text-xs text-amber-300 text-center font-medium">Ready for verification</p>
                           </div>
                         </div>
-                        <div className="flex gap-2">
+                        <div className="flex gap-3">
                           <button
                             onClick={() => processWithdrawal()}
                             disabled={loading}
-                            className="flex-1 px-4 py-2 text-xs rounded-lg bg-gradient-to-r from-amber-400 to-amber-600 text-black font-semibold hover:brightness-110 transition disabled:opacity-50"
+                            className="flex-1 px-4 py-3 text-sm rounded-full bg-gradient-to-r from-amber-400 to-amber-600 text-white font-bold shadow-xl shadow-amber-500/40 hover:shadow-2xl hover:shadow-amber-500/60 hover:scale-105 transition-all duration-300 disabled:opacity-50"
                           >
                             {loading ? (
                               <span className="flex items-center justify-center gap-2">
-                                <svg
-                                  className="animate-spin h-4 w-4"
-                                  fill="none"
-                                  viewBox="0 0 24 24"
-                                >
-                                  <circle
-                                    className="opacity-25"
-                                    cx="12"
-                                    cy="12"
-                                    r="10"
-                                    stroke="currentColor"
-                                    strokeWidth="4"
-                                  />
-                                  <path
-                                    className="opacity-75"
-                                    fill="currentColor"
-                                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                                  />
+                                <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                                 </svg>
                                 Verifying...
                               </span>
@@ -2450,7 +703,7 @@ function WithdrawPage() {
                           <button
                             onClick={retakePhoto}
                             disabled={loading}
-                            className="flex-1 px-4 py-2 text-xs rounded-lg bg-gray-800 text-gray-300 border border-dashed border-gray-700 hover:bg-gray-700 disabled:opacity-50"
+                            className="flex-1 px-4 py-3 text-sm rounded-full bg-gray-100 text-gray-700 border-2 border-gray-300 font-bold hover:bg-gray-200 hover:scale-105 transition-all duration-300 disabled:opacity-50"
                           >
                             Retake
                           </button>
@@ -2458,28 +711,18 @@ function WithdrawPage() {
                       </div>
                     ) : (
                       <div className="text-center py-4">
-                        <div className="h-20 w-20 mx-auto rounded-full bg-gradient-to-br from-amber-300 to-amber-500 flex items-center justify-center mb-4">
-                          <svg
-                            className="h-10 w-10 text-black"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z"
-                            />
+                        <div className="h-20 w-20 mx-auto rounded-full bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center mb-4 shadow-xl shadow-amber-500/40">
+                          <svg className="h-10 w-10 text-white" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
                           </svg>
                         </div>
-                        <p className="text-[11px] text-gray-400 mb-4">
+                        <p className="text-xs text-gray-600 mb-4">
                           Click below to start face verification
                         </p>
                         <button
                           onClick={startCamera}
                           disabled={loading}
-                          className="px-5 py-2 rounded-lg bg-gradient-to-r from-amber-400 to-amber-600 text-black font-semibold text-sm hover:brightness-110 disabled:opacity-50"
+                          className="px-6 py-3 rounded-full bg-gradient-to-r from-amber-400 to-amber-600 text-white font-bold text-sm shadow-xl shadow-amber-500/40 hover:shadow-2xl hover:shadow-amber-500/60 hover:scale-105 transition-all duration-300 disabled:opacity-50"
                         >
                           {loading ? 'Loading...' : 'Start Face Verification'}
                         </button>
@@ -2488,24 +731,22 @@ function WithdrawPage() {
                   </>
                 ) : null
               ) : (
-                // amount < threshold → Confirm Withdrawal
+                /* CONFIRM WITHOUT BIOMETRIC */
                 <>
-                  <h1 className="text-lg sm:text-xl font-semibold">Confirm Withdrawal</h1>
-                  <div className="bg-[#151515] rounded-lg border border-dashed border-gray-700 p-4">
-                    <div className="space-y-2">
-                      <div className="flex justify-between">
-                        <span className="text-gray-400">Amount:</span>
-                        <span className="font-semibold">
-                          ₹{Number(amount).toLocaleString('en-IN')}
-                        </span>
+                  <h1 className="text-lg sm:text-xl font-extrabold text-gray-900">Confirm Withdrawal</h1>
+                  <div className="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-2xl border-2 border-emerald-200/50 p-5 shadow-lg">
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-600 font-medium">Amount:</span>
+                        <span className="font-bold text-gray-900">₹{Number(amount).toLocaleString('en-IN')}</span>
                       </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-400">Service Charge:</span>
-                        <span className="text-emerald-300">₹0</span>
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-600 font-medium">Service Charge:</span>
+                        <span className="text-emerald-600 font-bold">₹0</span>
                       </div>
-                      <div className="border-t border-dashed border-gray-700 pt-2 mt-2 flex justify-between">
-                        <span className="text-gray-400">Total:</span>
-                        <span className="font-semibold text-lg">
+                      <div className="border-t-2 border-emerald-200/50 pt-3 mt-2 flex justify-between items-center">
+                        <span className="text-gray-700 font-bold">Total:</span>
+                        <span className="font-extrabold text-xl text-transparent bg-clip-text bg-gradient-to-r from-emerald-600 to-teal-600">
                           ₹{Number(amount).toLocaleString('en-IN')}
                         </span>
                       </div>
@@ -2516,50 +757,155 @@ function WithdrawPage() {
             </div>
           )}
 
+          {/* Step 4: Success Card */}
+          {step === 4 && withdrawData && (
+            <div className="space-y-6 py-4">
+              {/* Success Icon */}
+              <div className="flex justify-center">
+                <div className="h-20 w-20 rounded-full bg-gradient-to-br from-emerald-500 via-emerald-600 to-teal-600 flex items-center justify-center shadow-2xl shadow-emerald-500/40 animate-pulse">
+                  <svg className="h-10 w-10 text-white" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                  </svg>
+                </div>
+              </div>
+
+              {/* Success Message */}
+              <div className="text-center space-y-2">
+                <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900">
+                  Withdrawal Successful!
+                </h1>
+                <p className="text-sm text-gray-600">
+                  Your cash is ready for collection
+                </p>
+              </div>
+
+              {/* Transaction Details Card */}
+              <div className="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-2xl border-2 border-emerald-200/50 p-5 space-y-4 shadow-lg">
+                {/* Amount */}
+                <div className="text-center pb-4 border-b-2 border-emerald-200/50">
+                  <p className="text-xs font-semibold text-emerald-700 uppercase tracking-wide mb-1">
+                    Amount Withdrawn
+                  </p>
+                  <p className="text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-emerald-600 to-teal-600">
+                    ₹ {withdrawData.amount.toLocaleString('en-IN')}
+                  </p>
+                </div>
+
+                {/* Transaction Details */}
+                <div className="space-y-3 text-sm">
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-600 font-medium">New Balance</span>
+                    <span className="text-gray-900 font-bold">₹ {withdrawData.balance.toFixed(2)}</span>
+                  </div>
+                  
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-600 font-medium">Transaction ID</span>
+                    <span className="text-gray-900 font-mono text-xs font-semibold">{withdrawData.transactionId}</span>
+                  </div>
+                  
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-600 font-medium">Date & Time</span>
+                    <span className="text-gray-900 font-semibold">{withdrawData.timestamp}</span>
+                  </div>
+                  
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-600 font-medium">Status</span>
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100 border border-emerald-500/40 text-emerald-700 font-bold text-xs">
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                      Completed
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Additional Info */}
+              <div className="flex items-start gap-3 p-4 rounded-xl bg-blue-50/50 border border-blue-200/40">
+                <svg className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <p className="text-xs text-gray-600 leading-relaxed">
+                  Please collect your cash from the ATM dispenser. Your receipt has been sent to your registered email.
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Actions */}
-          <div className="flex items-center justify-between pt-3">
-            <button
-              type="button"
-              onClick={handleBack}
-              className="px-4 py-2 rounded-lg border border-dashed border-gray-700 text-gray-300 text-xs sm:text-sm hover:border-gray-500 disabled:opacity-50"
-              disabled={loading || isCapturing}
-            >
-              {step === 1 ? 'Cancel' : 'Back'}
-            </button>
-
-            {step === 1 && (
+          {step !== 4 && (
+            <div className="flex items-center justify-between pt-3">
               <button
                 type="button"
-                onClick={handleNextFromAmount}
-                disabled={!amount || Number(amount) <= 0 || loading}
-                className="px-5 py-2 rounded-lg bg-gradient-to-r from-emerald-400 to-emerald-600 text-black font-semibold text-xs sm:text-sm hover:brightness-110 disabled:opacity-60"
+                onClick={handleBack}
+                className="px-5 py-2.5 rounded-full border-2 border-gray-300 text-gray-700 font-semibold text-xs sm:text-sm hover:border-gray-400 hover:scale-105 transition-all duration-300"
+                disabled={loading || isCapturing}
               >
-                Continue
+                {step === 1 ? 'Cancel' : 'Back'}
               </button>
-            )}
 
-            {step === 2 && (
+              {step === 1 && (
+                <button
+                  type="button"
+                  onClick={handleNextFromAmount}
+                  disabled={!amount || Number(amount) <= 0 || loading}
+                  className="px-6 py-2.5 rounded-full bg-gradient-to-r from-emerald-500 via-emerald-600 to-teal-600 text-white font-bold text-xs sm:text-sm shadow-xl shadow-emerald-500/40 hover:shadow-2xl hover:shadow-emerald-500/60 hover:scale-105 transition-all duration-300 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:scale-100"
+                >
+                  Continue →
+                </button>
+              )}
+
+              {step === 2 && (
+                <button
+                  type="button"
+                  onClick={handleNextFromPin}
+                  disabled={!pin || pin.length < 4 || loading}
+                  className="px-6 py-2.5 rounded-full bg-gradient-to-r from-emerald-500 via-emerald-600 to-teal-600 text-white font-bold text-xs sm:text-sm shadow-xl shadow-emerald-500/40 hover:shadow-2xl hover:shadow-emerald-500/60 hover:scale-105 transition-all duration-300 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:scale-100"
+                >
+                  Continue →
+                </button>
+              )}
+
+              {step === 3 && Number(amount) < threshold && (
+                <button
+                  type="button"
+                  onClick={() => processWithdrawal()}
+                  disabled={loading}
+                  className="px-6 py-2.5 rounded-full bg-gradient-to-r from-emerald-500 via-emerald-600 to-teal-600 text-white font-bold text-xs sm:text-sm shadow-xl shadow-emerald-500/40 hover:shadow-2xl hover:shadow-emerald-500/60 hover:scale-105 transition-all duration-300 disabled:opacity-60"
+                >
+                  {loading ? (
+                    <span className="flex items-center gap-2">
+                      <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                      </svg>
+                      Processing...
+                    </span>
+                  ) : (
+                    'Confirm Withdrawal'
+                  )}
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Success Actions */}
+          {step === 4 && (
+            <div className="flex flex-col sm:flex-row gap-3 pt-3">
               <button
                 type="button"
-                onClick={handleNextFromPin}
-                disabled={!pin || pin.length < 4 || loading}
-                className="px-5 py-2 rounded-lg bg-gradient-to-r from-emerald-400 to-emerald-600 text-black font-semibold text-xs sm:text-sm hover:brightness-110 disabled:opacity-60"
+                onClick={() => navigate('/transactions')}
+                className="flex-1 px-6 py-3 rounded-full border-2 border-emerald-500 text-emerald-600 font-bold text-sm hover:bg-emerald-50 hover:scale-105 transition-all duration-300"
               >
-                Continue
+                View History
               </button>
-            )}
-
-            {step === 3 && Number(amount) < threshold && (
               <button
                 type="button"
-                onClick={() => processWithdrawal()}
-                disabled={loading}
-                className="px-5 py-2 rounded-lg bg-gradient-to-r from-emerald-400 to-emerald-600 text-black font-semibold text-xs sm:text-sm hover:brightness-110 disabled:opacity-60"
+                onClick={handleDone}
+                className="flex-1 px-6 py-3 rounded-full bg-gradient-to-r from-emerald-500 via-emerald-600 to-teal-600 text-white font-bold text-sm shadow-xl shadow-emerald-500/40 hover:shadow-2xl hover:shadow-emerald-500/60 hover:scale-105 transition-all duration-300"
               >
-                {loading ? 'Processing...' : 'Confirm Withdrawal'}
+                Back to Dashboard
               </button>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       </main>
 

@@ -1,7 +1,8 @@
-// models/User.js - FINAL CLEAN VERSION (WebAuthn Only)
+// models/User.js  
 import mongoose from 'mongoose'
 
-const biometricDeviceSchema = new mongoose.Schema(
+// ✅ Fingerprint Authenticator Schema
+const authenticatorSchema = new mongoose.Schema(
   {
     credentialID: {
       type: Buffer,
@@ -20,9 +21,13 @@ const biometricDeviceSchema = new mongoose.Schema(
       type: [String],
       default: [],
     },
-    deviceName: {
+    deviceType: {
       type: String,
-      default: 'Biometric Device',
+      default: 'unknown',
+    },
+    backedUp: {
+      type: Boolean,
+      default: false,
     },
     registeredAt: {
       type: Date,
@@ -71,15 +76,46 @@ const userSchema = new mongoose.Schema(
     // ---------------- BALANCE ----------------
     balance: { type: Number, default: 0 },
 
-    // ---------------- WEBAUTHN BIOMETRIC ----------------
-    biometricDevices: {
-      type: [biometricDeviceSchema],
-      default: [],
+    // ---------------- FACE BIOMETRIC ----------------
+    faceData: {
+      type: String,
+      default: null,
+    },
+    
+    faceRegistered: {
+      type: Boolean,
+      default: false,
     },
 
-    // Temporary challenge storage (WebAuthn)
-    webauthnChallenge: {
+    // ✅ ---------------- FINGERPRINT BIOMETRIC (WebAuthn) ----------------
+    authenticators: {
+      type: [authenticatorSchema],
+      default: [],
+    },
+    
+    fingerprintRegistered: {
+      type: Boolean,
+      default: false,
+    },
+    
+    currentChallenge: {
       type: String,
+      default: null,
+    },
+
+    webauthnUserId: {
+      type: String,
+      default: null,
+    },
+
+    // ✅✅✅ ADD THESE - BIOMETRIC TOKEN FOR WITHDRAWAL
+    biometricToken: {
+      type: String,
+      default: null,
+    },
+
+    biometricTokenExpiry: {
+      type: Date,
       default: null,
     },
 
@@ -87,7 +123,12 @@ const userSchema = new mongoose.Schema(
     securitySettings: {
       biometricThreshold: {
         type: Number,
-        default: 5000, // user can change anytime
+        default: 5000,
+      },
+      biometricMode: {
+        type: String,
+        enum: ['face', 'fingerprint', 'both'],
+        default: 'fingerprint',
       },
     },
 
@@ -102,152 +143,4 @@ const userSchema = new mongoose.Schema(
 
 export default mongoose.model('User', userSchema)
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-// // models/User.js - COMPLETE UPDATED VERSION WITH WEBAUTHN
-// import mongoose from 'mongoose'
-
-// const userSchema = new mongoose.Schema(
-//   {
-//     fullName: { 
-//       type: String, 
-//       required: true 
-//     },
-
-//     email: {
-//       type: String,
-//       required: true,
-//       unique: true,
-//       lowercase: true,
-//       trim: true,
-//     },
-
-//     accountNumber: {
-//       type: String,
-//       required: true,
-//       unique: true,
-//     },
-
-//     passwordHash: {
-//       type: String,
-//       required: true,
-//     },
-
-//     // Extra profile fields
-//     phone: {
-//       type: String,
-//       default: '',
-//     },
-//     city: {
-//       type: String,
-//       default: '',
-//     },
-//     address: {
-//       type: String,
-//       default: '',
-//     },
-
-//     // UPI PIN fields
-//     upiPin: {
-//       type: String,
-//       default: null,
-//     },
-//     hasUpiPin: {
-//       type: Boolean,
-//       default: false,
-//     },
-
-//     balance: {
-//       type: Number,
-//       default: 0,
-//     },
-    
-//     // 🔑 BIOMETRIC FIELDS (existing)
-//     fingerprintRegistered: {
-//       type: Boolean,
-//       default: false,
-//     },
-//     faceRegistered: {
-//       type: Boolean,
-//       default: false,
-//     },
-    
-//     // For Gemini AI face verification
-//     faceData: {
-//       type: String,
-//       default: null,
-//     },
-//     fingerprintData: {
-//       type: String,
-//       default: null,
-//     },
-    
-//     // ✅ WebAuthn biometric devices storage
-//     biometricDevices: [{
-//       credentialID: {
-//         type: Buffer,
-//         required: true
-//       },
-//       credentialPublicKey: {
-//         type: Buffer,
-//         required: true
-//       },
-//       counter: {
-//         type: Number,
-//         required: true,
-//         default: 0
-//       },
-//       transports: {
-//         type: [String],
-//         default: []
-//       },
-//       deviceName: {
-//         type: String,
-//         default: 'Biometric Device'
-//       },
-//       registeredAt: {
-//         type: Date,
-//         default: Date.now
-//       }
-//     }],
-
-//     // ⭐ NEW: store current WebAuthn challenge per user
-//     webauthnChallenge: {
-//       type: String,
-//       default: null,
-//     },
-    
-//     dailyLimit: {
-//       type: Number,
-//       default: 10000,
-//     },
-//   },
-//   { 
-//     timestamps: true 
-//   }
-// )
-
-// export default mongoose.model('User', userSchema)
+ 

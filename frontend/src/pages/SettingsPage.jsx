@@ -1,8 +1,11 @@
-// src/pages/SettingsPage.jsx - COMPLETE FIXED VERSION
+ 
+
+// src/pages/SettingsPage.jsx - SYNCED VERSION
 import React, { useEffect, useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import api from '../services/api'
 import { browserSupportsWebAuthn, startRegistration } from '@simplewebauthn/browser'
+
 
 function SettingsPage() {
   const navigate = useNavigate()
@@ -39,7 +42,6 @@ function SettingsPage() {
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
-
   const [capturedFace, setCapturedFace] = useState(null)
   const [showCamera, setShowCamera] = useState(false)
   const [isCapturing, setIsCapturing] = useState(false)
@@ -53,62 +55,56 @@ function SettingsPage() {
     }
   }, [])
 
- // Load user data on mount
-useEffect(() => {
-  const load = async () => {
-    const token = localStorage.getItem('token')
-    if (!token) return
+  // Load user data on mount
+  useEffect(() => {
+    const load = async () => {
+      const token = localStorage.getItem('token')
+      if (!token) return
 
-    const headers = { Authorization: `Bearer ${token}` }
+      const headers = { Authorization: `Bearer ${token}` }
 
-    try {
-      const res = await api.get('/settings/me', { headers })
-      setProfile({
-        fullName: res.data.fullName || '',
-        email: res.data.email || '',
-        phone: res.data.phone || '',
-        city: res.data.city || '',
-        address: res.data.address || '',
-      })
+      try {
+        const res = await api.get('/settings/me', { headers })
+        setProfile({
+          fullName: res.data.fullName || '',
+          email: res.data.email || '',
+          phone: res.data.phone || '',
+          city: res.data.city || '',
+          address: res.data.address || '',
+        })
 
-      setThreshold(
-        res.data.biometricThreshold ??
-        res.data.securitySettings?.biometricThreshold ??
-        5000
-      )
+        setThreshold(
+          res.data.biometricThreshold ??
+          res.data.securitySettings?.biometricThreshold ??
+          5000
+        )
 
-      const bioRes = await api.get('/biometric/status', { headers })
-      setBiometricStatus({
-        faceRegistered: Boolean(bioRes.data.faceRegistered),
-        fingerprintRegistered: Boolean(bioRes.data.fingerprintRegistered),
-      })
+        const faceRes = await api.get('/biometric/status', { headers })
+        const fpRes = await api.get('/fingerprint/status', { headers })
 
-      // ✅ CRITICAL FIX: Load saved face photo
-      if (bioRes.data.faceRegistered && res.data.faceData) {
-        setCapturedFace(res.data.faceData)
-        console.log('✅ Loaded saved face photo, length:', res.data.faceData.length)
-      } else if (bioRes.data.faceRegistered && !res.data.faceData) {
-        console.warn('⚠️ Face marked as registered but no faceData in response')
+        setBiometricStatus({
+          faceRegistered: Boolean(faceRes.data.faceRegistered),
+          fingerprintRegistered: Boolean(fpRes.data.fingerprintRegistered),
+        })
+
+        if (faceRes.data.faceRegistered && res.data.faceData) {
+          setCapturedFace(res.data.faceData)
+          console.log('✅ Loaded saved face photo')
+        }
+
+      } catch (err) {
+        console.error('Failed to load settings:', err)
+        setError('Failed to load settings')
       }
-
-    } catch (err) {
-      console.error('Failed to load settings:', err)
-      setError('Failed to load settings')
     }
-  }
 
-  load()
-}, [])
-
+    load()
+  }, [])
 
   const withAuth = () => {
     const token = localStorage.getItem('token')
     return token ? { Authorization: `Bearer ${token}` } : null
   }
-
-  // ============================================================
-  // ✅ FIXED: FACE RECOGNITION (GEMINI)
-  // ============================================================
 
   const startCamera = async () => {
     try {
@@ -117,7 +113,6 @@ useEffect(() => {
       setError('')
       setMessage('')
 
-      // Request camera access
       const stream = await navigator.mediaDevices.getUserMedia({ 
         video: { 
           width: { ideal: 640 },
@@ -131,19 +126,15 @@ useEffect(() => {
       if (videoRef.current) {
         videoRef.current.srcObject = stream
         
-        // ✅ CRITICAL FIX: Wait for video to actually load and start playing
         await new Promise((resolve, reject) => {
           videoRef.current.onloadedmetadata = () => {
             videoRef.current.play()
               .then(resolve)
               .catch(reject)
           }
-          
-          // Timeout after 10 seconds
           setTimeout(() => reject(new Error('Video loading timeout')), 10000)
         })
         
-        // ✅ Give user 3 seconds to position face
         setTimeout(() => {
           if (streamRef.current) {
             captureFacePhoto()
@@ -153,7 +144,6 @@ useEffect(() => {
     } catch (err) {
       console.error('Camera error:', err)
       
-      // User-friendly error messages
       if (err.name === 'NotAllowedError') {
         setError('Camera access denied. Please allow camera permissions.')
       } else if (err.name === 'NotFoundError') {
@@ -165,7 +155,6 @@ useEffect(() => {
       setShowCamera(false)
       setIsCapturing(false)
       
-      // Stop any active streams
       if (streamRef.current) {
         streamRef.current.getTracks().forEach(t => t.stop())
         streamRef.current = null
@@ -183,7 +172,6 @@ useEffect(() => {
         return
       }
 
-      // ✅ Check if video has loaded enough data
       if (video.readyState < video.HAVE_ENOUGH_DATA) {
         setError('Video not ready - please try again')
         setShowCamera(false)
@@ -195,12 +183,10 @@ useEffect(() => {
       canvas.width = 320
       canvas.height = 240
       
-      // Draw the current video frame
       ctx.drawImage(video, 0, 0, 320, 240)
       
       const imageData = canvas.toDataURL('image/jpeg', 0.7)
       
-      // ✅ CRITICAL FIX: Validate the captured image isn't blank
       if (!imageData || imageData.length < 5000) {
         setError('Captured image is blank or too small - please try again')
         setShowCamera(false)
@@ -208,18 +194,9 @@ useEffect(() => {
         return
       }
       
-      // ✅ Check if it's a valid base64 image
-      if (!imageData.startsWith('data:image/')) {
-        setError('Invalid image format captured')
-        setShowCamera(false)
-        setIsCapturing(false)
-        return
-      }
-      
       setCapturedFace(imageData)
-      console.log('✅ Face captured successfully, size:', imageData.length)
+      console.log('✅ Face captured successfully')
 
-      // Stop camera
       if (streamRef.current) {
         streamRef.current.getTracks().forEach(t => t.stop())
         streamRef.current = null
@@ -227,6 +204,7 @@ useEffect(() => {
       
       setShowCamera(false)
       setIsCapturing(false)
+      setMessage('✅ Face captured! Click "Save Face" to register.')
     } catch (err) {
       console.error('Capture error:', err)
       setError('Failed to capture photo: ' + err.message)
@@ -252,30 +230,18 @@ useEffect(() => {
       setError('')
       setMessage('')
       
-      console.log('📤 Uploading face data, size:', capturedFace.length)
-      
       const response = await api.post(
         '/biometric/register-face', 
         { faceData: capturedFace }, 
         { headers }
       )
       
-      console.log('✅ Face registration response:', response.data)
-      
       setBiometricStatus(s => ({ ...s, faceRegistered: true }))
-      setMessage('✅ Face registered successfully!')
+      setMessage('✅ Face registered successfully! You can now use face verification.')
       
     } catch (err) {
       console.error('Face registration error:', err)
-      
-      // Backend validation errors
-      if (err.response?.status === 400) {
-        setError(err.response.data.message || 'Invalid face data')
-      } else if (err.response?.status === 401) {
-        setError('Session expired - please login again')
-      } else {
-        setError('Failed to register face: ' + (err.response?.data?.message || err.message))
-      }
+      setError(err.response?.data?.message || 'Failed to register face')
     } finally {
       setLoading(false)
     }
@@ -299,10 +265,6 @@ useEffect(() => {
     setError('')
   }
 
-  // ============================================================
-  // ✅ FIXED: FINGERPRINT (WEBAUTHN)
-  // ============================================================
-
   const registerFingerprint = async () => {
     const headers = withAuth()
     if (!headers) {
@@ -320,61 +282,30 @@ useEffect(() => {
       setError('')
       setMessage('')
       
-      console.log('📱 Requesting fingerprint registration options...')
+      const optResponse = await api.get('/fingerprint/init-register', { headers })
+      const credential = await startRegistration(optResponse.data)
       
-      // Get registration options from backend
-      const optResponse = await api.get('/biometric/register-options', { headers })
-      console.log('✅ Got registration options:', optResponse.data)
-      
-      // Start browser fingerprint registration
-      const registrationResult = await startRegistration(optResponse.data)
-      console.log('✅ Browser registration completed')
-      
-      // Verify registration on backend
       const verifyResponse = await api.post(
-        '/biometric/register-verify', 
-        { registrationResult }, 
+        '/fingerprint/verify-register', 
+        credential, 
         { headers }
       )
       
-      console.log('✅ Fingerprint registration verified:', verifyResponse.data)
-      
       setBiometricStatus(s => ({ ...s, fingerprintRegistered: true }))
-      
-      // Show backup status if available
-      if (verifyResponse.data.backedUp) {
-        setMessage('✅ Fingerprint registered & synced to your account!')
-      } else {
-        setMessage('✅ Fingerprint registered successfully!')
-      }
+      setMessage('✅ Fingerprint registered successfully!')
       
     } catch (err) {
       console.error('Fingerprint registration error:', err)
       
-      // User cancelled
       if (err.name === 'NotAllowedError') {
-        setError('Fingerprint registration cancelled')
-      } 
-      // No biometric hardware
-      else if (err.name === 'NotSupportedError') {
-        setError('Your device does not support fingerprint authentication')
-      }
-      // Backend errors
-      else if (err.response?.data?.message) {
-        setError(err.response.data.message)
-      }
-      // Network or other errors
-      else {
-        setError('Failed to register fingerprint: ' + err.message)
+        setError('Fingerprint registration cancelled by user')
+      } else {
+        setError(err.response?.data?.error || 'Failed to register fingerprint')
       }
     } finally {
       setLoading(false)
     }
   }
-
-  // ============================================================
-  // ✅ FIXED: THRESHOLD UPDATE
-  // ============================================================
 
   const handleThresholdUpdate = async () => {
     const headers = withAuth()
@@ -383,7 +314,6 @@ useEffect(() => {
       return
     }
     
-    // Validate threshold
     if (threshold < 1000 || threshold > 100000) {
       setError('Threshold must be between ₹1,000 and ₹1,00,000')
       return
@@ -408,10 +338,6 @@ useEffect(() => {
       setLoading(false)
     }
   }
-
-  // ============================================================
-  // PROFILE UPDATE
-  // ============================================================
 
   const handleSaveProfile = async (e) => {
     e.preventDefault()
@@ -440,10 +366,6 @@ useEffect(() => {
       setLoading(false)
     }
   }
-
-  // ============================================================
-  // PASSWORD UPDATE
-  // ============================================================
 
   const handlePasswordUpdate = async (e) => {
     e.preventDefault()
@@ -477,10 +399,6 @@ useEffect(() => {
     }
   }
 
-  // ============================================================
-  // TRANSACTION PIN UPDATE
-  // ============================================================
-
   const handlePinUpdate = async (e) => {
     e.preventDefault()
     setError('')
@@ -499,12 +417,12 @@ useEffect(() => {
       await api.put(
         '/settings/transaction-pin',
         {
-          currentPin: pinForm.currentPin || null,
+          currentPin: pinForm.currentPin || undefined,
           newPin: pinForm.newPin,
         },
         { headers }
       )
-      setMessage('✅ Transaction PIN updated')
+      setMessage('✅ Transaction PIN updated successfully')
       setPinForm({ currentPin: '', newPin: '', confirmPin: '' })
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to update PIN')
@@ -513,19 +431,15 @@ useEffect(() => {
     }
   }
 
-  // ============================================================
-  // JSX RENDER
-  // ============================================================
-
   return (
-    <div className="min-h-screen bg-[#0D0D0D] text-white">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-emerald-50">
       {/* Top Bar */}
-      <header className="border-b border-dashed border-gray-800 bg-black/40 backdrop-blur-xl">
+      <header className="border-b border-white/20 bg-white/70 backdrop-blur-2xl shadow-lg shadow-emerald-500/5">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <div className="h-8 w-8 rounded-xl bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center">
+            <div className="h-8 w-8 rounded-xl bg-gradient-to-br from-emerald-500 via-emerald-600 to-teal-600 flex items-center justify-center shadow-xl shadow-emerald-500/40">
               <svg
-                className="h-4 w-4 text-black"
+                className="h-4 w-4 text-white"
                 fill="none"
                 stroke="currentColor"
                 strokeWidth="2.5"
@@ -535,14 +449,14 @@ useEffect(() => {
               </svg>
             </div>
             <div>
-              <p className="text-xs text-gray-400 uppercase tracking-wide">Account</p>
-              <p className="text-sm font-semibold">Settings</p>
+              <p className="text-xs text-gray-500 uppercase tracking-wide font-semibold">Account</p>
+              <p className="text-sm font-bold text-gray-900">Settings</p>
             </div>
           </div>
 
           <button
             onClick={() => navigate('/dashboard')}
-            className="text-xs sm:text-sm px-3 py-1.5 rounded-full border border-dashed border-gray-700 text-gray-300 hover:border-emerald-500 hover:text-emerald-300 transition"
+            className="text-xs sm:text-sm px-4 py-2 rounded-full border-2 border-emerald-500 text-emerald-600 font-semibold hover:bg-emerald-50 hover:scale-105 transition-all duration-300"
           >
             ← Back to Dashboard
           </button>
@@ -551,31 +465,50 @@ useEffect(() => {
 
       {/* Main Content */}
       <main className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6 sm:space-y-8">
+        {/* Messages */}
         {(message || error) && (
-          <div className="text-xs sm:text-sm">
-            {message && <p className="mb-1 text-emerald-300">{message}</p>}
-            {error && <p className="text-red-400">{error}</p>}
+          <div className="space-y-2">
+            {message && (
+              <div className="p-4 rounded-xl bg-emerald-50/80 backdrop-blur-sm border border-emerald-200/60 shadow-lg">
+                <div className="flex items-center gap-2">
+                  <svg className="h-5 w-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                  </svg>
+                  <span className="text-sm font-medium text-emerald-800">{message}</span>
+                </div>
+              </div>
+            )}
+            {error && (
+              <div className="p-4 rounded-xl bg-red-50/80 backdrop-blur-sm border border-red-200/60 shadow-lg">
+                <div className="flex items-center gap-2">
+                  <svg className="h-5 w-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <span className="text-sm font-medium text-red-800">{error}</span>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
         {/* Header */}
         <section className="space-y-1">
-          <h1 className="text-xl sm:text-2xl font-semibold">Security & Profile</h1>
-          <p className="text-xs sm:text-sm text-gray-400">
+          <h1 className="text-xl sm:text-2xl font-extrabold text-gray-900">Security & Profile</h1>
+          <p className="text-xs sm:text-sm text-gray-600">
             Manage biometrics, personal information, password and transaction PIN.
           </p>
         </section>
 
-        {/* 🔐 Biometric Threshold Setting */}
-        <section className="bg-[#101010] rounded-2xl border border-dashed border-gray-800 p-4 sm:p-5 space-y-3">
-          <h2 className="text-sm sm:text-base font-semibold">Biometric Threshold</h2>
-          <p className="text-xs sm:text-sm text-gray-400">
+        {/* Biometric Threshold Setting */}
+        <section className="bg-white/60 backdrop-blur-sm rounded-3xl border-2 border-gray-200/50 p-4 sm:p-5 space-y-3 shadow-xl shadow-emerald-500/5">
+          <h2 className="text-sm sm:text-base font-extrabold text-gray-900">Biometric Threshold</h2>
+          <p className="text-xs sm:text-sm text-gray-600">
             Set the minimum withdrawal amount that requires biometric verification.
           </p>
 
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
             <div className="flex items-center gap-2">
-              <span className="text-xs text-gray-400">₹</span>
+              <span className="text-sm text-gray-600 font-semibold">₹</span>
               <input
                 type="number"
                 min="1000"
@@ -587,104 +520,101 @@ useEffect(() => {
                   setThreshold(val)
                   if (error.includes('Threshold')) setError('')
                 }}
-                className="w-32 rounded-lg bg-[#151515] border border-dashed border-gray-700 px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/60"
+                className="w-32 rounded-xl bg-white/60 backdrop-blur-sm border-2 border-gray-200/50 px-4 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent shadow-sm hover:border-emerald-300/50 transition-all duration-300"
               />
             </div>
 
-            <div className="text-[10px] text-gray-500">
+            <div className="text-xs text-gray-500 font-medium">
               Min: ₹1,000 • Max: ₹1,00,000
             </div>
 
             <button
               onClick={handleThresholdUpdate}
               disabled={loading || threshold < 1000 || threshold > 100000}
-              className="px-4 py-2 text-xs rounded-lg bg-emerald-500/10 text-emerald-300 border border-dashed border-emerald-400/70 hover:bg-emerald-500/20 disabled:opacity-50 disabled:cursor-not-allowed transition"
+              className="px-5 py-2 text-xs rounded-full bg-emerald-50 text-emerald-600 border-2 border-emerald-500/70 font-bold hover:bg-emerald-100 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 transition-all duration-300"
             >
               {loading ? 'Saving...' : 'Save Threshold'}
             </button>
           </div>
 
-          <div className="text-xs text-gray-400 bg-[#151515] rounded-lg p-3 border border-dashed border-gray-700">
-            💡 Withdrawals above <span className="text-emerald-300 font-semibold">₹{threshold.toLocaleString('en-IN')}</span> will require biometric verification
+          <div className="flex items-start gap-3 p-4 rounded-xl bg-blue-50/50 border border-blue-200/40">
+            <svg className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <p className="text-xs text-gray-600 leading-relaxed">
+              Withdrawals above <span className="text-emerald-600 font-bold">₹{threshold.toLocaleString('en-IN')}</span> will require biometric verification
+            </p>
           </div>
         </section>
 
         {/* Biometric Settings */}
-        <section className="bg-[#101010] rounded-2xl border border-dashed border-gray-800 p-4 sm:p-5 space-y-4">
-          <h2 className="text-sm sm:text-base font-semibold mb-1">Biometric Security</h2>
-          <p className="text-xs sm:text-sm text-gray-400 mb-2">
+        <section className="bg-white/60 backdrop-blur-sm rounded-3xl border-2 border-gray-200/50 p-4 sm:p-5 space-y-4 shadow-xl shadow-emerald-500/5">
+          <h2 className="text-sm sm:text-base font-extrabold text-gray-900 mb-1">Biometric Security</h2>
+          <p className="text-xs sm:text-sm text-gray-600 mb-2">
             Link your fingerprint and face data for secure withdrawals above ₹{threshold.toLocaleString('en-IN')}.
           </p>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {/* Fingerprint Section */}
-            <div className="rounded-xl border border-dashed border-emerald-500/60 bg-[#141414] p-4">
+            <div className="rounded-2xl border-2 border-emerald-200/50 bg-gradient-to-br from-emerald-50 to-teal-50 p-4 shadow-lg hover:shadow-xl hover:border-emerald-300 transition-all duration-300">
               <div className="flex items-center gap-3 mb-3">
-                <div className="h-10 w-10 rounded-full bg-emerald-500/20 flex items-center justify-center">
+                <div className="h-10 w-10 rounded-full bg-gradient-to-br from-emerald-500 via-emerald-600 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-500/30">
                   <svg
-                    className="h-5 w-5 text-emerald-300"
+                    className="h-5 w-5 text-white"
                     fill="none"
                     stroke="currentColor"
                     strokeWidth="2"
                     viewBox="0 0 24 24"
                   >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
-                    />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                   </svg>
                 </div>
                 <div>
-                  <p className="text-sm font-semibold text-white">Fingerprint</p>
-                  <p className="text-xs text-gray-400">For withdrawals above ₹{threshold.toLocaleString('en-IN')}</p>
+                  <p className="text-sm font-bold text-gray-900">Fingerprint</p>
+                  <p className="text-xs text-gray-600">For withdrawals above ₹{threshold.toLocaleString('en-IN')}</p>
                 </div>
               </div>
 
               {biometricStatus.fingerprintRegistered ? (
                 <div className="space-y-2">
-                  <div className="text-xs text-emerald-300">✓ Fingerprint registered</div>
-                  <div className="text-xs text-gray-400">Ready for secure transactions</div>
+                  <div className="text-xs text-emerald-600 font-bold">✓ Fingerprint registered</div>
+                  <div className="text-xs text-gray-600">Ready for secure transactions</div>
                 </div>
               ) : (
                 <button
                   onClick={registerFingerprint}
                   disabled={loading}
-                  className="w-full px-4 py-2 text-xs rounded-lg bg-emerald-500/10 text-emerald-300 border border-dashed border-emerald-400/70 hover:bg-emerald-500/20 transition disabled:opacity-50"
+                  className="w-full px-4 py-2.5 text-xs rounded-full bg-emerald-100 text-emerald-600 border-2 border-emerald-500/70 font-bold hover:bg-emerald-200 hover:scale-105 transition-all duration-300 disabled:opacity-50 disabled:hover:scale-100"
                 >
-                  {loading ? 'Connecting biometric...' : 'Register Fingerprint'}
+                  {loading ? 'Connecting...' : 'Register Fingerprint'}
                 </button>
               )}
             </div>
 
             {/* Face Section */}
-            <div className="rounded-xl border border-dashed border-amber-500/70 bg-[#141414] p-4">
+            <div className="rounded-2xl border-2 border-amber-200/50 bg-gradient-to-br from-amber-50 to-orange-50 p-4 shadow-lg hover:shadow-xl hover:border-amber-300 transition-all duration-300">
               <div className="flex items-center gap-3 mb-3">
-                <div className="h-10 w-10 rounded-full bg-amber-500/20 flex items-center justify-center">
+                <div className="h-10 w-10 rounded-full bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center shadow-lg shadow-amber-500/30">
                   <svg
-                    className="h-5 w-5 text-amber-300"
+                    className="h-5 w-5 text-white"
                     fill="none"
                     stroke="currentColor"
                     strokeWidth="2"
                     viewBox="0 0 24 24"
                   >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                    />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                 </div>
                 <div>
-                  <p className="text-sm font-semibold text-white">Face Recognition</p>
-                  <p className="text-xs text-gray-400">For withdrawals above ₹{threshold.toLocaleString('en-IN')}</p>
+                  <p className="text-sm font-bold text-gray-900">Face Recognition</p>
+                  <p className="text-xs text-gray-600">For withdrawals above ₹{threshold.toLocaleString('en-IN')}</p>
                 </div>
               </div>
 
               {biometricStatus.faceRegistered ? (
                 <div className="space-y-3">
-                  <div className="text-xs text-amber-300">✓ Face registered</div>
-                  <div className="relative rounded-lg overflow-hidden border border-dashed border-amber-400/30 bg-black">
+                  <div className="text-xs text-amber-600 font-bold">✓ Face registered</div>
+                  <div className="relative rounded-xl overflow-hidden border-2 border-amber-200/40 bg-black shadow-lg">
                     {capturedFace ? (
                       <img
                         src={capturedFace}
@@ -700,16 +630,12 @@ useEffect(() => {
                           strokeWidth="1.5"
                           viewBox="0 0 24 24"
                         >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z"
-                          />
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
                         </svg>
                       </div>
                     )}
                     <div className="absolute bottom-0 left-0 right-0 bg-black/70 py-1 px-2">
-                      <p className="text-[10px] text-amber-300 text-center">
+                      <p className="text-[10px] text-amber-300 text-center font-medium">
                         Your Registered Face
                       </p>
                     </div>
@@ -717,14 +643,14 @@ useEffect(() => {
                   <button
                     onClick={reuploadFace}
                     disabled={loading}
-                    className="w-full px-4 py-2 text-xs rounded-lg bg-gray-800 text-gray-300 border border-dashed border-gray-700 hover:bg-gray-700 transition"
+                    className="w-full px-4 py-2.5 text-xs rounded-full bg-gray-100 text-gray-700 border-2 border-gray-300 font-bold hover:bg-gray-200 hover:scale-105 transition-all duration-300"
                   >
                     Update Face
                   </button>
                 </div>
               ) : showCamera ? (
                 <div className="space-y-3">
-                  <div className="relative rounded-lg overflow-hidden border-2 border-dashed border-amber-400 bg-black">
+                  <div className="relative rounded-xl overflow-hidden border-2 border-amber-400 bg-black shadow-xl">
                     <video
                       ref={videoRef}
                       autoPlay
@@ -732,42 +658,42 @@ useEffect(() => {
                       muted
                       className="w-full h-40 object-cover"
                     />
-                    <div className="absolute bottom-0 left-0 right-0 bg-black/70 py-1 px-2">
-                      <p className="text-[10px] text-white text-center">
-                        Camera will capture automatically in 3 seconds...
+                    <div className="absolute bottom-0 left-0 right-0 bg-black/70 py-2 px-3">
+                      <p className="text-xs text-white text-center font-medium">
+                        Capturing automatically in 3 seconds...
                       </p>
                     </div>
                   </div>
                   <button
                     onClick={cancelCamera}
-                    className="w-full px-4 py-2 text-xs rounded-lg bg-gray-800 text-gray-300 border border-dashed border-gray-700 hover:bg-gray-700"
+                    className="w-full px-4 py-2.5 text-xs rounded-full bg-gray-100 text-gray-700 border-2 border-gray-300 font-bold hover:bg-gray-200 transition-all"
                   >
                     Cancel Camera
                   </button>
                 </div>
               ) : capturedFace ? (
                 <div className="space-y-3">
-                  <div className="relative rounded-lg overflow-hidden border border-dashed border-amber-400/50 bg-black">
+                  <div className="relative rounded-xl overflow-hidden border-2 border-amber-400/50 bg-black shadow-lg">
                     <img
                       src={capturedFace}
                       alt="Captured face"
                       className="w-full h-40 object-cover"
                     />
                     <div className="absolute bottom-0 left-0 right-0 bg-black/70 py-1 px-2">
-                      <p className="text-[10px] text-amber-300 text-center">Captured Face</p>
+                      <p className="text-xs text-amber-300 text-center font-medium">Captured Face</p>
                     </div>
                   </div>
                   <div className="flex gap-2">
                     <button
                       onClick={registerFace}
                       disabled={loading}
-                      className="flex-1 px-4 py-2 text-xs rounded-lg bg-amber-500/20 text-amber-300 border border-dashed border-amber-400/70 hover:bg-amber-500/30 transition disabled:opacity-50"
+                      className="flex-1 px-4 py-2.5 text-xs rounded-full bg-amber-100 text-amber-600 border-2 border-amber-500/70 font-bold hover:bg-amber-200 hover:scale-105 transition-all duration-300 disabled:opacity-50"
                     >
                       {loading ? 'Saving...' : 'Save Face'}
                     </button>
                     <button
                       onClick={startCamera}
-                      className="flex-1 px-4 py-2 text-xs rounded-lg bg-gray-800 text-gray-300 border border-dashed border-gray-700 hover:bg-gray-700"
+                      className="flex-1 px-4 py-2.5 text-xs rounded-full bg-gray-100 text-gray-700 border-2 border-gray-300 font-bold hover:bg-gray-200 hover:scale-105 transition-all duration-300"
                     >
                       Retake
                     </button>
@@ -775,28 +701,24 @@ useEffect(() => {
                 </div>
               ) : (
                 <div className="space-y-3">
-                  <div className="border-2 border-dashed border-gray-700 rounded-lg p-6 text-center bg-black">
+                  <div className="border-2 border-dashed border-gray-300 rounded-xl p-6 text-center bg-white">
                     <svg
-                      className="h-12 w-12 mx-auto text-gray-600 mb-2"
+                      className="h-12 w-12 mx-auto text-gray-400 mb-2"
                       fill="none"
                       stroke="currentColor"
                       strokeWidth="1.5"
                       viewBox="0 0 24 24"
                     >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z"
-                      />
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
                     </svg>
-                    <p className="text-xs text-gray-400 mb-1">No face registered yet</p>
+                    <p className="text-xs text-gray-600 mb-1 font-medium">No face registered yet</p>
                     <p className="text-[10px] text-gray-500 mb-3">
                       Tap below to add your face
                     </p>
                     <button
                       onClick={startCamera}
                       disabled={isCapturing}
-                      className="px-4 py-2 text-xs rounded-lg bg-amber-500/10 text-amber-300 border border-dashed border-amber-400/70 hover:bg-amber-500/20 transition disabled:opacity-50"
+                      className="px-4 py-2.5 text-xs rounded-full bg-amber-100 text-amber-600 border-2 border-amber-500/70 font-bold hover:bg-amber-200 hover:scale-105 transition-all duration-300 disabled:opacity-50"
                     >
                       {isCapturing ? 'Opening Camera...' : 'Capture Your Face'}
                     </button>
@@ -811,10 +733,10 @@ useEffect(() => {
         <canvas ref={canvasRef} className="hidden" />
 
         {/* Personal Info Section */}
-        <section className="bg-[#101010] rounded-2xl border border-dashed border-gray-800 p-4 sm:p-5 space-y-4">
+        <section className="bg-white/60 backdrop-blur-sm rounded-3xl border-2 border-gray-200/50 p-4 sm:p-5 space-y-4 shadow-xl shadow-emerald-500/5">
           <div className="flex items-center justify-between">
-            <h2 className="text-sm sm:text-base font-semibold">Personal Information</h2>
-            <span className="text-[11px] text-gray-500">
+            <h2 className="text-sm sm:text-base font-extrabold text-gray-900">Personal Information</h2>
+            <span className="text-xs text-gray-500 font-medium">
               Keep this up to date for recovery and KYC.
             </span>
           </div>
@@ -823,52 +745,52 @@ useEffect(() => {
             className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 text-xs sm:text-sm"
             onSubmit={handleSaveProfile}
           >
-            <div className="space-y-1.5">
-              <label className="block text-gray-300">Full Name</label>
+            <div className="space-y-2">
+              <label className="block text-sm font-semibold text-gray-700">Full Name</label>
               <input
                 type="text"
                 value={profile.fullName}
                 onChange={(e) => setProfile({ ...profile, fullName: e.target.value })}
-                className="w-full rounded-lg bg-[#151515] border border-dashed border-gray-700 px-3 py-2 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/60"
+                className="w-full rounded-xl bg-white/60 backdrop-blur-sm border-2 border-gray-200/50 px-4 py-3 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent shadow-sm hover:border-emerald-300/50 transition-all duration-300"
               />
             </div>
-            <div className="space-y-1.5">
-              <label className="block text-gray-300">Email</label>
+            <div className="space-y-2">
+              <label className="block text-sm font-semibold text-gray-700">Email</label>
               <input
                 type="email"
                 value={profile.email}
                 disabled
-                className="w-full rounded-lg bg-[#181818] border border-dashed border-gray-700 px-3 py-2 text-gray-500 cursor-not-allowed"
+                className="w-full rounded-xl bg-gray-100 border-2 border-gray-300 px-4 py-3 text-sm text-gray-500 cursor-not-allowed"
               />
             </div>
-            <div className="space-y-1.5">
-              <label className="block text-gray-300">Phone Number</label>
+            <div className="space-y-2">
+              <label className="block text-sm font-semibold text-gray-700">Phone Number</label>
               <input
                 type="tel"
                 value={profile.phone}
                 onChange={(e) => setProfile({ ...profile, phone: e.target.value })}
                 placeholder="+91 XXXXX XXXXX"
-                className="w-full rounded-lg bg-[#151515] border border-dashed border-gray-700 px-3 py-2 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/60"
+                className="w-full rounded-xl bg-white/60 backdrop-blur-sm border-2 border-gray-200/50 px-4 py-3 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent shadow-sm hover:border-emerald-300/50 transition-all duration-300"
               />
             </div>
-            <div className="space-y-1.5">
-              <label className="block text-gray-300">City</label>
+            <div className="space-y-2">
+              <label className="block text-sm font-semibold text-gray-700">City</label>
               <input
                 type="text"
                 value={profile.city}
                 onChange={(e) => setProfile({ ...profile, city: e.target.value })}
-                placeholder="Hyderabad"
-                className="w-full rounded-lg bg-[#151515] border border-dashed border-gray-700 px-3 py-2 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/60"
+                placeholder="Your city"
+                className="w-full rounded-xl bg-white/60 backdrop-blur-sm border-2 border-gray-200/50 px-4 py-3 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent shadow-sm hover:border-emerald-300/50 transition-all duration-300"
               />
             </div>
-            <div className="space-y-1.5 sm:col-span-2">
-              <label className="block text-gray-300">Address</label>
+            <div className="space-y-2 sm:col-span-2">
+              <label className="block text-sm font-semibold text-gray-700">Address</label>
               <input
                 type="text"
                 value={profile.address}
                 onChange={(e) => setProfile({ ...profile, address: e.target.value })}
                 placeholder="Flat / Street / Area"
-                className="w-full rounded-lg bg-[#151515] border border-dashed border-gray-700 px-3 py-2 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/60"
+                className="w-full rounded-xl bg-white/60 backdrop-blur-sm border-2 border-gray-200/50 px-4 py-3 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent shadow-sm hover:border-emerald-300/50 transition-all duration-300"
               />
             </div>
 
@@ -876,9 +798,9 @@ useEffect(() => {
               <button
                 type="submit"
                 disabled={loading}
-                className="px-4 py-2 rounded-lg text-xs sm:text-sm bg-gradient-to-r from-emerald-400 to-emerald-600 text-black font-semibold hover:brightness-110 disabled:opacity-60 transition"
+                className="px-6 py-3 rounded-full text-sm bg-gradient-to-r from-emerald-500 via-emerald-600 to-teal-600 text-white font-bold shadow-xl shadow-emerald-500/40 hover:shadow-2xl hover:shadow-emerald-500/60 hover:scale-105 transition-all duration-300 disabled:opacity-60 disabled:hover:scale-100"
               >
-                Save Personal Info
+                {loading ? 'Saving...' : 'Save Personal Info'}
               </button>
             </div>
           </form>
@@ -887,44 +809,44 @@ useEffect(() => {
         {/* Password & Transaction PIN Sections */}
         <section className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
           {/* Password */}
-          <div className="bg-[#101010] rounded-2xl border border-dashed border-gray-800 p-4 sm:p-5 space-y-3">
-            <h2 className="text-sm sm:text-base font-semibold">Password</h2>
-            <p className="text-[11px] text-gray-400">
+          <div className="bg-white/60 backdrop-blur-sm rounded-3xl border-2 border-gray-200/50 p-4 sm:p-5 space-y-3 shadow-xl shadow-emerald-500/5">
+            <h2 className="text-sm sm:text-base font-extrabold text-gray-900">Password</h2>
+            <p className="text-xs text-gray-600">
               Create a strong password with at least 8 characters.
             </p>
 
-            <form className="space-y-2 text-xs sm:text-sm" onSubmit={handlePasswordUpdate}>
-              <div className="space-y-1">
-                <label className="block text-gray-300">Current Password</label>
+            <form className="space-y-3 text-xs sm:text-sm" onSubmit={handlePasswordUpdate}>
+              <div className="space-y-2">
+                <label className="block text-sm font-semibold text-gray-700">Current Password</label>
                 <input
                   type="password"
                   value={passwordForm.currentPassword}
                   onChange={(e) =>
                     setPasswordForm({ ...passwordForm, currentPassword: e.target.value })
                   }
-                  className="w-full rounded-lg bg-[#151515] border border-dashed border-gray-700 px-3 py-2 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/60"
+                  className="w-full rounded-xl bg-white/60 backdrop-blur-sm border-2 border-gray-200/50 px-4 py-3 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent shadow-sm hover:border-emerald-300/50 transition-all duration-300"
                 />
               </div>
-              <div className="space-y-1">
-                <label className="block text-gray-300">New Password</label>
+              <div className="space-y-2">
+                <label className="block text-sm font-semibold text-gray-700">New Password</label>
                 <input
                   type="password"
                   value={passwordForm.newPassword}
                   onChange={(e) =>
                     setPasswordForm({ ...passwordForm, newPassword: e.target.value })
                   }
-                  className="w-full rounded-lg bg-[#151515] border border-dashed border-gray-700 px-3 py-2 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/60"
+                  className="w-full rounded-xl bg-white/60 backdrop-blur-sm border-2 border-gray-200/50 px-4 py-3 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent shadow-sm hover:border-emerald-300/50 transition-all duration-300"
                 />
               </div>
-              <div className="space-y-1">
-                <label className="block text-gray-300">Confirm New Password</label>
+              <div className="space-y-2">
+                <label className="block text-sm font-semibold text-gray-700">Confirm New Password</label>
                 <input
                   type="password"
                   value={passwordForm.confirmPassword}
                   onChange={(e) =>
                     setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })
                   }
-                  className="w-full rounded-lg bg-[#151515] border border-dashed border-gray-700 px-3 py-2 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/60"
+                  className="w-full rounded-xl bg-white/60 backdrop-blur-sm border-2 border-gray-200/50 px-4 py-3 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent shadow-sm hover:border-emerald-300/50 transition-all duration-300"
                 />
               </div>
 
@@ -932,24 +854,24 @@ useEffect(() => {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="px-4 py-2 rounded-lg bg-emerald-500/10 text-emerald-300 border border-dashed border-emerald-400/70 text-xs sm:text-sm hover:bg-emerald-500/20 disabled:opacity-60 transition"
+                  className="px-5 py-2.5 rounded-full bg-emerald-50 text-emerald-600 border-2 border-emerald-500/70 font-bold text-sm hover:bg-emerald-100 hover:scale-105 disabled:opacity-60 disabled:hover:scale-100 transition-all duration-300"
                 >
-                  Update Password
+                  {loading ? 'Updating...' : 'Update Password'}
                 </button>
               </div>
             </form>
           </div>
 
           {/* Transaction PIN */}
-          <div className="bg-[#101010] rounded-2xl border border-dashed border-gray-800 p-4 sm:p-5 space-y-3">
-            <h2 className="text-sm sm:text-base font-semibold">Transaction PIN</h2>
-            <p className="text-[11px] text-gray-400">
+          <div className="bg-white/60 backdrop-blur-sm rounded-3xl border-2 border-gray-200/50 p-4 sm:p-5 space-y-3 shadow-xl shadow-emerald-500/5">
+            <h2 className="text-sm sm:text-base font-extrabold text-gray-900">Transaction PIN</h2>
+            <p className="text-xs text-gray-600">
               Set a 4 or 6 digit PIN to approve withdrawals and deposits.
             </p>
 
-            <form className="space-y-2 text-xs sm:text-sm" onSubmit={handlePinUpdate}>
-              <div className="space-y-1">
-                <label className="block text-gray-300">Current PIN (optional)</label>
+            <form className="space-y-3 text-xs sm:text-sm" onSubmit={handlePinUpdate}>
+              <div className="space-y-2">
+                <label className="block text-sm font-semibold text-gray-700">Current PIN (optional)</label>
                 <input
                   type="password"
                   maxLength={6}
@@ -957,11 +879,11 @@ useEffect(() => {
                   onChange={(e) =>
                     setPinForm({ ...pinForm, currentPin: e.target.value })
                   }
-                  className="w-full rounded-lg bg-[#151515] border border-dashed border-gray-700 px-3 py-2 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/60"
+                  className="w-full rounded-xl bg-white/60 backdrop-blur-sm border-2 border-gray-200/50 px-4 py-3 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent shadow-sm hover:border-emerald-300/50 transition-all duration-300"
                 />
               </div>
-              <div className="space-y-1">
-                <label className="block text-gray-300">New PIN</label>
+              <div className="space-y-2">
+                <label className="block text-sm font-semibold text-gray-700">New PIN</label>
                 <input
                   type="password"
                   maxLength={6}
@@ -969,11 +891,11 @@ useEffect(() => {
                   onChange={(e) =>
                     setPinForm({ ...pinForm, newPin: e.target.value })
                   }
-                  className="w-full rounded-lg bg-[#151515] border border-dashed border-gray-700 px-3 py-2 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/60"
+                  className="w-full rounded-xl bg-white/60 backdrop-blur-sm border-2 border-gray-200/50 px-4 py-3 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent shadow-sm hover:border-emerald-300/50 transition-all duration-300"
                 />
               </div>
-              <div className="space-y-1">
-                <label className="block text-gray-300">Confirm New PIN</label>
+              <div className="space-y-2">
+                <label className="block text-sm font-semibold text-gray-700">Confirm New PIN</label>
                 <input
                   type="password"
                   maxLength={6}
@@ -981,7 +903,7 @@ useEffect(() => {
                   onChange={(e) =>
                     setPinForm({ ...pinForm, confirmPin: e.target.value })
                   }
-                  className="w-full rounded-lg bg-[#151515] border border-dashed border-gray-700 px-3 py-2 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/60"
+                  className="w-full rounded-xl bg-white/60 backdrop-blur-sm border-2 border-gray-200/50 px-4 py-3 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent shadow-sm hover:border-emerald-300/50 transition-all duration-300"
                 />
               </div>
 
@@ -989,9 +911,9 @@ useEffect(() => {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="px-4 py-2 rounded-lg bg-gradient-to-r from-emerald-400 to-emerald-600 text-black font-semibold text-xs sm:text-sm hover:brightness-110 disabled:opacity-60 transition"
+                  className="px-6 py-3 rounded-full bg-gradient-to-r from-emerald-500 via-emerald-600 to-teal-600 text-white font-bold text-sm shadow-xl shadow-emerald-500/40 hover:shadow-2xl hover:shadow-emerald-500/60 hover:scale-105 transition-all duration-300 disabled:opacity-60 disabled:hover:scale-100"
                 >
-                  Save PIN
+                  {loading ? 'Saving...' : 'Save PIN'}
                 </button>
               </div>
             </form>
@@ -1003,982 +925,3 @@ useEffect(() => {
 }
 
 export default SettingsPage
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-// // src/pages/SettingsPage.jsx - FIXED FOR NEW USERS + WEBAUTHN FINGERPRINT
-// import React, { useEffect, useState, useRef } from 'react'
-// import { useNavigate } from 'react-router-dom'
-// import api from '../services/api'
-// import { browserSupportsWebAuthn, startRegistration } from '@simplewebauthn/browser'
-
-// function SettingsPage() {
-//   const navigate = useNavigate()
-//   const videoRef = useRef(null)
-//   const canvasRef = useRef(null)
-//   const streamRef = useRef(null)
-
-//   const [profile, setProfile] = useState({
-//     fullName: '',
-//     email: '',
-//     phone: '',
-//     city: '',
-//     address: '',
-//   })
-
-//   const [biometricStatus, setBiometricStatus] = useState({
-//     faceRegistered: false,
-//     fingerprintRegistered: false,
-//   })
-
-//   const [passwordForm, setPasswordForm] = useState({
-//     currentPassword: '',
-//     newPassword: '',
-//     confirmPassword: '',
-//   })
-
-//   const [pinForm, setPinForm] = useState({
-//     currentPin: '',
-//     newPin: '',
-//     confirmPin: '',
-//   })
-
-//   const [loading, setLoading] = useState(false)
-//   const [message, setMessage] = useState('')
-//   const [error, setError] = useState('')
-
-//   // Face capture states - NEW USERS START EMPTY
-//   const [capturedFace, setCapturedFace] = useState(null)
-//   const [showCamera, setShowCamera] = useState(false)
-//   const [isCapturing, setIsCapturing] = useState(false)
-
-//   // Clean up camera on unmount
-//   useEffect(() => {
-//     return () => {
-//       if (streamRef.current) {
-//         streamRef.current.getTracks().forEach((track) => track.stop())
-//       }
-//     }
-//   }, [])
-
-//   // Load profile and biometric status
-//   useEffect(() => {
-//     const fetchData = async () => {
-//       try {
-//         const token = localStorage.getItem('token')
-//         if (!token) return
-
-//         // Get profile
-//         const res = await api.get('/settings/me', {
-//           headers: { Authorization: `Bearer ${token}` },
-//         })
-
-//         setProfile({
-//           fullName: res.data.fullName || '',
-//           email: res.data.email || '',
-//           phone: res.data.phone || '',
-//           city: res.data.city || '',
-//           address: res.data.address || '',
-//         })
-
-//         // Get biometric status
-//         const bioRes = await api.get('/biometric/status', {
-//           headers: { Authorization: `Bearer ${token}` },
-//         })
-
-//         console.log('Biometric status from API:', bioRes.data)
-
-//       // ✅ FIX: Correct biometric status mapping (WebAuthn + legacy)
-// setBiometricStatus({
-//   faceRegistered: Boolean(bioRes.data.faceRegistered),
-//   fingerprintRegistered: Boolean(
-//     bioRes.data.webAuthnRegistered ?? bioRes.data.fingerprintRegistered
-//   ),
-// })
-
-//       } catch (err) {
-//         console.error('Error fetching data:', err)
-//       }
-//     }
-
-//     fetchData()
-//   }, [])
-
-//   const withAuth = () => {
-//     const token = localStorage.getItem('token')
-//     if (!token) {
-//       setError('You must be logged in to update settings.')
-//       return null
-//     }
-//     return { Authorization: `Bearer ${token}` }
-//   }
-
-//   // Start camera for face capture
-//   const startCamera = async () => {
-//     try {
-//       setError('')
-//       setShowCamera(true)
-//       setIsCapturing(true)
-
-//       const stream = await navigator.mediaDevices.getUserMedia({
-//         video: {
-//           facingMode: 'user',
-//           width: { ideal: 320 },
-//           height: { ideal: 240 },
-//         },
-//         audio: false,
-//       })
-
-//       streamRef.current = stream
-
-//       if (videoRef.current) {
-//         videoRef.current.srcObject = stream
-//         // Auto-capture after 3 seconds
-//      // ✅ FIX: Wait for video to be ready before auto-capture
-// videoRef.current.onloadedmetadata = () => {
-//   setTimeout(captureFacePhoto, 2000)
-// }
-
-//       }
-//     } catch (err) {
-//       console.error('Camera error:', err)
-//       setError('Camera permission denied. Please allow camera access.')
-//       setShowCamera(false)
-//       setIsCapturing(false)
-//     }
-//   }
-
-//   // Capture face photo
-//   const captureFacePhoto = () => {
-//     if (!videoRef.current || !canvasRef.current) {
-//       setError('Camera not ready')
-//       return
-//     }
-
-//     const video = videoRef.current
-//     const canvas = canvasRef.current
-//     const context = canvas.getContext('2d')
-
-//     canvas.width = 320
-//     canvas.height = 240
-
-//     context.drawImage(video, 0, 0, canvas.width, canvas.height)
-
-//     const faceImage = canvas.toDataURL('image/jpeg', 0.7)
-
-//     console.log('Face captured in Settings:', {
-//       length: faceImage.length,
-//       first50: faceImage.substring(0, 50),
-//       size: `${canvas.width}x${canvas.height}`,
-//       quality: '70%',
-//     })
-
-//     setCapturedFace(faceImage)
-
-//     if (streamRef.current) {
-//       streamRef.current.getTracks().forEach((track) => track.stop())
-//       streamRef.current = null
-//     }
-
-//     setShowCamera(false)
-//     setIsCapturing(false)
-//   }
-
-//   // Register captured face
-//   const registerFace = async () => {
-//     if (!capturedFace) {
-//       setError('Please capture your face first.')
-//       return
-//     }
-
-//     setLoading(true)
-//     setError('')
-//     setMessage('')
-
-//     const headers = withAuth()
-//     if (!headers) {
-//       setLoading(false)
-//       return
-//     }
-
-//     try {
-//       console.log('Sending face data to register:', {
-//         length: capturedFace.length,
-//         first100: capturedFace.substring(0, 100),
-//       })
-
-//       const response = await api.post(
-//         '/biometric/register-face',
-//         {
-//           faceData: capturedFace,
-//         },
-//         { headers }
-//       )
-
-//       console.log('Register face API response:', response.data)
-
-//       if (response.data.success) {
-//         setMessage('Face registered successfully!')
-//         setBiometricStatus((prev) => ({
-//           ...prev,
-//           faceRegistered: true,
-//         }))
-
-//         const bioRes = await api.get('/biometric/status', {
-//           headers,
-//         })
-//         console.log('Updated biometric status:', bioRes.data)
-//       } else {
-//         setError(response.data.message || 'Failed to register face.')
-//       }
-//     } catch (err) {
-//       console.error('Register face error:', {
-//         status: err.response?.status,
-//         data: err.response?.data,
-//         message: err.message,
-//       })
-//       setError(err.response?.data?.message || 'Failed to register face.')
-//     } finally {
-//       setLoading(false)
-//     }
-//   }
-
-//   // ✅ Register fingerprint with REAL WebAuthn
-//   const registerFingerprint = async () => {
-//     setLoading(true)
-//     setError('')
-//     setMessage('')
-
-//     const headers = withAuth()
-//     if (!headers) {
-//       setLoading(false)
-//       return
-//     }
-
-//     try {
-//       if (!browserSupportsWebAuthn()) {
-//         setError('Biometric authentication is not supported on this browser/device.')
-//         setLoading(false)
-//         return
-//       }
-
-//       // 1) Get registration options from backend
-//       const optionsRes = await api.get('/biometric/fingerprint-register-options', {
-//         headers,
-//       })
-
-//       // 2) Trigger device biometric (fingerprint/FaceID/phone lock)
-//       const registrationResult = await startRegistration(optionsRes.data)
-
-//       // 3) Send result back to backend to verify and save
-//       const verifyRes = await api.post(
-//         '/biometric/fingerprint-register-verify',
-//         {
-//           registrationResult,
-//           deviceName: 'My Device',
-//         },
-//         { headers }
-//       )
-
-//       if (verifyRes.data.success) {
-//         setMessage('Fingerprint / device biometric registered successfully!')
-//         setBiometricStatus((prev) => ({
-//           ...prev,
-//           fingerprintRegistered: true,
-//         }))
-
-//         const bioRes = await api.get('/biometric/status', {
-//           headers,
-//         })
-//         console.log('Updated biometric status:', bioRes.data)
-//       } else {
-//         setError(verifyRes.data.message || 'Failed to register fingerprint.')
-//       }
-//     } catch (err) {
-//       console.error('Fingerprint registration error:', err)
-//      // ✅ FIX: Handle all WebAuthn cancel cases
-// if (err.name === 'NotAllowedError' || err.name === 'AbortError') {
-
-//         setError('Biometric prompt was cancelled or denied.')
-//       } else if (err.response?.data?.message) {
-//         setError(err.response.data.message)
-//       } else {
-//         setError('Failed to register fingerprint. Please try again.')
-//       }
-//     } finally {
-//       setLoading(false)
-//     }
-//   }
-
-//   // Re-upload face
-//   const reuploadFace = () => {
-//     setCapturedFace(null)
-//     setShowCamera(false)
-//     //setBiometricStatus((prev) => ({ ...prev, faceRegistered: false }))
-//     startCamera()
-//   }
-
-//   // Cancel camera
-//   const cancelCamera = () => {
-//     if (streamRef.current) {
-//       streamRef.current.getTracks().forEach((track) => track.stop())
-//       streamRef.current = null
-//     }
-//     setShowCamera(false)
-//     setIsCapturing(false)
-//   }
-
-//   // Handle save profile
-//   const handleSaveProfile = async (e) => {
-//     e.preventDefault()
-//     setError('')
-//     setMessage('')
-//     const headers = withAuth()
-//     if (!headers) return
-
-//     try {
-//       setLoading(true)
-//       await api.put(
-//         '/settings/profile',
-//         {
-//           fullName: profile.fullName,
-//           phone: profile.phone,
-//           city: profile.city,
-//           address: profile.address,
-//         },
-//         { headers }
-//       )
-//       setMessage('Profile updated successfully.')
-//     } catch (err) {
-//       console.error(err)
-//       setError(err.response?.data?.message || 'Failed to update profile.')
-//     } finally {
-//       setLoading(false)
-//     }
-//   }
-
-//   // Handle password update
-//   const handlePasswordUpdate = async (e) => {
-//     e.preventDefault()
-//     setError('')
-//     setMessage('')
-
-//     if (passwordForm.newPassword !== passwordForm.confirmPassword) {
-//       setError('New password and confirm password must match.')
-//       return
-//     }
-
-//     const headers = withAuth()
-//     if (!headers) return
-
-//     try {
-//       setLoading(true)
-//       await api.put(
-//         '/settings/password',
-//         {
-//           currentPassword: passwordForm.currentPassword,
-//           newPassword: passwordForm.newPassword,
-//         },
-//         { headers }
-//       )
-//       setMessage('Password updated successfully.')
-//       setPasswordForm({
-//         currentPassword: '',
-//         newPassword: '',
-//         confirmPassword: '',
-//       })
-//     } catch (err) {
-//       console.error(err)
-//       setError(err.response?.data?.message || 'Failed to update password.')
-//     } finally {
-//       setLoading(false)
-//     }
-//   }
-
-//   // Handle PIN update
-//   const handlePinUpdate = async (e) => {
-//     e.preventDefault()
-//     setError('')
-//     setMessage('')
-
-//     if (pinForm.newPin !== pinForm.confirmPin) {
-//       setError('New PIN and confirm PIN must match.')
-//       return
-//     }
-//     if (
-//       !/^[0-9]{4}$/.test(pinForm.newPin) &&
-//       !/^[0-9]{6}$/.test(pinForm.newPin)
-//     ) {
-//       setError('PIN must be exactly 4 or 6 digits.')
-//       return
-//     }
-
-//     const headers = withAuth()
-//     if (!headers) return
-
-//     try {
-//       setLoading(true)
-//       await api.put(
-//         '/settings/transaction-pin',
-//         {
-//           currentPin: pinForm.currentPin || null,
-//           newPin: pinForm.newPin,
-//         },
-//         { headers }
-//       )
-//       setMessage('Transaction PIN updated.')
-//       setPinForm({ currentPin: '', newPin: '', confirmPin: '' })
-//     } catch (err) {
-//       console.error(err)
-//       setError(err.response?.data?.message || 'Failed to update PIN.')
-//     } finally {
-//       setLoading(false)
-//     }
-//   }
-
-//   return (
-//     <div className="min-h-screen bg-[#0D0D0D] text-white">
-//       {/* Top Bar */}
-//       <header className="border-b border-dashed border-gray-800 bg-black/40 backdrop-blur-xl">
-//         <div className="max-w-5xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
-//           <div className="flex items-center gap-2.5">
-//             <div className="h-8 w-8 rounded-xl bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center">
-//               <svg
-//                 className="h-4 w-4 text-black"
-//                 fill="none"
-//                 stroke="currentColor"
-//                 strokeWidth="2.5"
-//                 viewBox="0 0 24 24"
-//               >
-//                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-//               </svg>
-//             </div>
-//             <div>
-//               <p className="text-xs text-gray-400 uppercase tracking-wide">Account</p>
-//               <p className="text-sm font-semibold">Settings</p>
-//             </div>
-//           </div>
-
-//           <button
-//             onClick={() => navigate('/dashboard')}
-//             className="text-xs sm:text-sm px-3 py-1.5 rounded-full border border-dashed border-gray-700 text-gray-300 hover:border-emerald-500 hover:text-emerald-300 transition"
-//           >
-//             ← Back to Dashboard
-//           </button>
-//         </div>
-//       </header>
-
-//       {/* Main Content */}
-//       <main className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6 sm:space-y-8">
-//         {(message || error) && (
-//           <div className="text-xs sm:text-sm">
-//             {message && <p className="mb-1 text-emerald-300">{message}</p>}
-//             {error && <p className="text-red-400">{error}</p>}
-//           </div>
-//         )}
-
-//         {/* Header */}
-//         <section className="space-y-1">
-//           <h1 className="text-xl sm:text-2xl font-semibold">Security & Profile</h1>
-//           <p className="text-xs sm:text-sm text-gray-400">
-//             Manage biometrics, personal information, password and transaction PIN.
-//           </p>
-//         </section>
-
-//    {/* 🔐 Biometric Threshold Setting */}
-// <div className="rounded-xl border border-dashed border-gray-700 bg-[#141414] p-4 space-y-2">
-//   <p className="text-xs text-gray-400">
-//     Set the minimum withdrawal amount that requires biometric verification.
-//   </p>
-
-//   <div className="flex items-center gap-3">
-//     <input
-//       type="number"
-//       min="1000"
-//       step="500"
-//       value={threshold}
-//       onChange={(e) => setThreshold(Number(e.target.value))}
-//       className="w-32 rounded-lg bg-[#151515] border border-dashed border-gray-700 px-3 py-2 text-sm outline-none focus:border-emerald-500"
-//     />
-
-//     <span className="text-xs text-gray-400">INR</span>
-
-//     <button
-//       onClick={async () => {
-//         const headers = withAuth()
-//         if (!headers) return
-
-//         try {
-//           await api.put(
-//             '/settings/biometric-threshold',
-//             { biometricThreshold: threshold },
-//             { headers }
-//           )
-//           setMessage('Biometric threshold updated')
-//         } catch (err) {
-//           setError(err.response?.data?.message || 'Failed to update threshold')
-//         }
-//       }}
-//       className="px-4 py-2 text-xs rounded-lg bg-emerald-500/10 text-emerald-300 border border-dashed border-emerald-400/70 hover:bg-emerald-500/20"
-//     >
-//       Save Threshold
-//     </button>
-//   </div>
-// </div>
-
-
-//         {/* Biometric Settings */}
-//         <section className="bg-[#101010] rounded-2xl border border-dashed border-gray-800 p-4 sm:p-5 space-y-4">
-//           <h2 className="text-sm sm:text-base font-semibold mb-1">Biometric Security</h2>
-//           <p className="text-xs sm:text-sm text-gray-400 mb-2">
-//             Link your fingerprint and face data for secure withdrawals above ₹5000.
-//           </p>
-
-//           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-//             {/* Fingerprint Section */}
-//             <div className="rounded-xl border border-dashed border-emerald-500/60 bg-[#141414] p-4">
-//               <div className="flex items-center gap-3 mb-3">
-//                 <div className="h-10 w-10 rounded-full bg-emerald-500/20 flex items-center justify-center">
-//                   <svg
-//                     className="h-5 w-5 text-emerald-300"
-//                     fill="none"
-//                     stroke="currentColor"
-//                     strokeWidth="2"
-//                     viewBox="0 0 24 24"
-//                   >
-//                     <path
-//                       strokeLinecap="round"
-//                       strokeLinejoin="round"
-//                       d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
-//                     />
-//                   </svg>
-//                 </div>
-//                 <div>
-//                   <p className="text-sm font-semibold text-white">Fingerprint</p>
-//                   <p className="text-xs text-gray-400">For withdrawals above ₹5000</p>
-//                 </div>
-//               </div>
-
-//               {biometricStatus.fingerprintRegistered ? (
-//                 <div className="space-y-2">
-//                   <div className="text-xs text-emerald-300">✓ Fingerprint registered</div>
-//                   <div className="text-xs text-gray-400">Ready for secure transactions</div>
-//                 </div>
-//               ) : (
-//                 <button
-//                   onClick={registerFingerprint}
-//                   disabled={loading}
-//                   className="w-full px-4 py-2 text-xs rounded-lg bg-emerald-500/10 text-emerald-300 border border-dashed border-emerald-400/70 hover:bg-emerald-500/20 transition disabled:opacity-50"
-//                 >
-//                   {loading ? 'Connecting biometric...' : 'Register Fingerprint'}
-//                 </button>
-//               )}
-//             </div>
-
-//             {/* Face Section */}
-//             <div className="rounded-xl border border-dashed border-amber-500/70 bg-[#141414] p-4">
-//               <div className="flex items-center gap-3 mb-3">
-//                 <div className="h-10 w-10 rounded-full bg-amber-500/20 flex items-center justify-center">
-//                   <svg
-//                     className="h-5 w-5 text-amber-300"
-//                     fill="none"
-//                     stroke="currentColor"
-//                     strokeWidth="2"
-//                     viewBox="0 0 24 24"
-//                   >
-//                     <path
-//                       strokeLinecap="round"
-//                       strokeLinejoin="round"
-//                       d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-//                     />
-//                   </svg>
-//                 </div>
-//                 <div>
-//                   <p className="text-sm font-semibold text-white">Face Recognition</p>
-//                   <p className="text-xs text-gray-400">For withdrawals above ₹5000</p>
-//                 </div>
-//               </div>
-
-//               {biometricStatus.faceRegistered ? (
-//                 <div className="space-y-3">
-//                   <div className="text-xs text-amber-300">✓ Face registered</div>
-//                   <div className="relative rounded-lg overflow-hidden border border-dashed border-amber-400/30 bg-black">
-//                     {capturedFace ? (
-//                       <img
-//                         src={capturedFace}
-//                         alt="Registered face"
-//                         className="w-full h-40 object-cover"
-//                       />
-//                     ) : (
-//                       <div className="w-full h-40 flex items-center justify-center bg-gray-900">
-//                         <svg
-//                           className="h-12 w-12 text-gray-600"
-//                           fill="none"
-//                           stroke="currentColor"
-//                           strokeWidth="1.5"
-//                           viewBox="0 0 24 24"
-//                         >
-//                           <path
-//                             strokeLinecap="round"
-//                             strokeLinejoin="round"
-//                             d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z"
-//                           />
-//                         </svg>
-//                       </div>
-//                     )}
-//                     <div className="absolute bottom-0 left-0 right-0 bg-black/70 py-1 px-2">
-//                       <p className="text-[10px] text-amber-300 text-center">
-//                         Your Registered Face
-//                       </p>
-//                     </div>
-//                   </div>
-//                   <button
-//                     onClick={reuploadFace}
-//                     disabled={loading}
-//                     className="w-full px-4 py-2 text-xs rounded-lg bg-gray-800 text-gray-300 border border-dashed border-gray-700 hover:bg-gray-700 transition"
-//                   >
-//                     Update Face
-//                   </button>
-//                 </div>
-//               ) : showCamera ? (
-//                 <div className="space-y-3">
-//                   <div className="relative rounded-lg overflow-hidden border-2 border-dashed border-amber-400 bg-black">
-//                     <video
-//                       ref={videoRef}
-//                       autoPlay
-//                       playsInline
-//                       muted
-//                       className="w-full h-40 object-cover"
-//                     />
-//                     <div className="absolute bottom-0 left-0 right-0 bg-black/70 py-1 px-2">
-//                       <p className="text-[10px] text-white text-center">
-//                         Camera will capture automatically...
-//                       </p>
-//                     </div>
-//                   </div>
-//                   <button
-//                     onClick={cancelCamera}
-//                     className="w-full px-4 py-2 text-xs rounded-lg bg-gray-800 text-gray-300 border border-dashed border-gray-700 hover:bg-gray-700"
-//                   >
-//                     Cancel Camera
-//                   </button>
-//                 </div>
-//               ) : capturedFace ? (
-//                 <div className="space-y-3">
-//                   <div className="relative rounded-lg overflow-hidden border border-dashed border-amber-400/50 bg-black">
-//                     <img
-//                       src={capturedFace}
-//                       alt="Captured face"
-//                       className="w-full h-40 object-cover"
-//                     />
-//                     <div className="absolute bottom-0 left-0 right-0 bg-black/70 py-1 px-2">
-//                       <p className="text-[10px] text-amber-300 text-center">Captured Face</p>
-//                     </div>
-//                   </div>
-//                   <div className="flex gap-2">
-//                     <button
-//                       onClick={registerFace}
-//                       disabled={loading}
-//                       className="flex-1 px-4 py-2 text-xs rounded-lg bg-amber-500/20 text-amber-300 border border-dashed border-amber-400/70 hover:bg-amber-500/30 transition disabled:opacity-50"
-//                     >
-//                       {loading ? 'Saving...' : 'Save Face'}
-//                     </button>
-//                     <button
-//                       onClick={startCamera}
-//                       className="flex-1 px-4 py-2 text-xs rounded-lg bg-gray-800 text-gray-300 border border-dashed border-gray-700 hover:bg-gray-700"
-//                     >
-//                       Retake
-//                     </button>
-//                   </div>
-//                 </div>
-//               ) : (
-//                 <div className="space-y-3">
-//                   <div className="border-2 border-dashed border-gray-700 rounded-lg p-6 text-center bg-black">
-//                     <svg
-//                       className="h-12 w-12 mx-auto text-gray-600 mb-2"
-//                       fill="none"
-//                       stroke="currentColor"
-//                       strokeWidth="1.5"
-//                       viewBox="0 0 24 24"
-//                     >
-//                       <path
-//                         strokeLinecap="round"
-//                         strokeLinejoin="round"
-//                         d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z"
-//                       />
-//                     </svg>
-//                     <p className="text-xs text-gray-400 mb-1">No face registered yet</p>
-//                     <p className="text-[10px] text-gray-500 mb-3">
-//                       Tap below to add your face
-//                     </p>
-//                     <button
-//                       onClick={startCamera}
-//                       disabled={isCapturing}
-//                       className="px-4 py-2 text-xs rounded-lg bg-amber-500/10 text-amber-300 border border-dashed border-amber-400/70 hover:bg-amber-500/20 transition disabled:opacity-50"
-//                     >
-//                       {isCapturing ? 'Opening Camera...' : 'Capture Your Face'}
-//                     </button>
-//                   </div>
-//                 </div>
-//               )}
-//             </div>
-//           </div>
-//         </section>
-
-//         {/* Hidden canvas */}
-//         <canvas ref={canvasRef} className="hidden" />
-
-//         {/* Personal Info Section */}
-//         <section className="bg-[#101010] rounded-2xl border border-dashed border-gray-800 p-4 sm:p-5 space-y-4">
-//           <div className="flex items-center justify-between">
-//             <h2 className="text-sm sm:text-base font-semibold">Personal Information</h2>
-//             <span className="text-[11px] text-gray-500">
-//               Keep this up to date for recovery and KYC.
-//             </span>
-//           </div>
-
-//           <form
-//             className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 text-xs sm:text-sm"
-//             onSubmit={handleSaveProfile}
-//           >
-//             <div className="space-y-1.5">
-//               <label className="block text-gray-300">Full Name</label>
-//               <input
-//                 type="text"
-//                 value={profile.fullName}
-//                 onChange={(e) => setProfile({ ...profile, fullName: e.target.value })}
-//                 className="w-full rounded-lg bg-[#151515] border border-dashed border-gray-700 px-3 py-2 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/60"
-//               />
-//             </div>
-//             <div className="space-y-1.5">
-//               <label className="block text-gray-300">Email</label>
-//               <input
-//                 type="email"
-//                 value={profile.email}
-//                 disabled
-//                 className="w-full rounded-lg bg-[#181818] border border-dashed border-gray-700 px-3 py-2 text-gray-500 cursor-not-allowed"
-//               />
-//             </div>
-//             <div className="space-y-1.5">
-//               <label className="block text-gray-300">Phone Number</label>
-//               <input
-//                 type="tel"
-//                 value={profile.phone}
-//                 onChange={(e) => setProfile({ ...profile, phone: e.target.value })}
-//                 placeholder="+91 XXXXX XXXXX"
-//                 className="w-full rounded-lg bg-[#151515] border border-dashed border-gray-700 px-3 py-2 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/60"
-//               />
-//             </div>
-//             <div className="space-y-1.5">
-//               <label className="block text-gray-300">City</label>
-//               <input
-//                 type="text"
-//                 value={profile.city}
-//                 onChange={(e) => setProfile({ ...profile, city: e.target.value })}
-//                 placeholder="Hyderabad"
-//                 className="w-full rounded-lg bg-[#151515] border border-dashed border-gray-700 px-3 py-2 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/60"
-//               />
-//             </div>
-//             <div className="space-y-1.5 sm:col-span-2">
-//               <label className="block text-gray-300">Address</label>
-//               <input
-//                 type="text"
-//                 value={profile.address}
-//                 onChange={(e) => setProfile({ ...profile, address: e.target.value })}
-//                 placeholder="Flat / Street / Area"
-//                 className="w-full rounded-lg bg-[#151515] border border-dashed border-gray-700 px-3 py-2 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/60"
-//               />
-//             </div>
-
-//             <div className="flex justify-end pt-2 sm:col-span-2">
-//               <button
-//                 type="submit"
-//                 disabled={loading}
-//                 className="px-4 py-2 rounded-lg text-xs sm:text-sm bg-gradient-to-r from-emerald-400 to-emerald-600 text-black font-semibold hover:brightness-110 disabled:opacity-60 transition"
-//               >
-//                 Save Personal Info
-//               </button>
-//             </div>
-//           </form>
-//         </section>
-
-//         {/* Password & Transaction PIN Sections */}
-//         <section className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
-//           {/* Password */}
-//           <div className="bg-[#101010] rounded-2xl border border-dashed border-gray-800 p-4 sm:p-5 space-y-3">
-//             <h2 className="text-sm sm:text-base font-semibold">Password</h2>
-//             <p className="text-[11px] text-gray-400">
-//               Create a strong password with at least 8 characters.
-//             </p>
-
-//             <form className="space-y-2 text-xs sm:text-sm" onSubmit={handlePasswordUpdate}>
-//               <div className="space-y-1">
-//                 <label className="block text-gray-300">Current Password</label>
-//                 <input
-//                   type="password"
-//                   value={passwordForm.currentPassword}
-//                   onChange={(e) =>
-//                     setPasswordForm({ ...passwordForm, currentPassword: e.target.value })
-//                   }
-//                   className="w-full rounded-lg bg-[#151515] border border-dashed border-gray-700 px-3 py-2 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/60"
-//                 />
-//               </div>
-//               <div className="space-y-1">
-//                 <label className="block text-gray-300">New Password</label>
-//                 <input
-//                   type="password"
-//                   value={passwordForm.newPassword}
-//                   onChange={(e) =>
-//                     setPasswordForm({ ...passwordForm, newPassword: e.target.value })
-//                   }
-//                   className="w-full rounded-lg bg-[#151515] border border-dashed border-gray-700 px-3 py-2 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/60"
-//                 />
-//               </div>
-//               <div className="space-y-1">
-//                 <label className="block text-gray-300">Confirm New Password</label>
-//                 <input
-//                   type="password"
-//                   value={passwordForm.confirmPassword}
-//                   onChange={(e) =>
-//                     setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })
-//                   }
-//                   className="w-full rounded-lg bg-[#151515] border border-dashed border-gray-700 px-3 py-2 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/60"
-//                 />
-//               </div>
-
-//               <div className="pt-2 flex justify-end">
-//                 <button
-//                   type="submit"
-//                   disabled={loading}
-//                   className="px-4 py-2 rounded-lg bg-emerald-500/10 text-emerald-300 border border-dashed border-emerald-400/70 text-xs sm:text-sm hover:bg-emerald-500/20 disabled:opacity-60 transition"
-//                 >
-//                   Update Password
-//                 </button>
-//               </div>
-//             </form>
-//           </div>
-
-//           {/* Transaction PIN */}
-//           <div className="bg-[#101010] rounded-2xl border border-dashed border-gray-800 p-4 sm:p-5 space-y-3">
-//             <h2 className="text-sm sm:text-base font-semibold">Transaction PIN</h2>
-//             <p className="text-[11px] text-gray-400">
-//               Set a 4 or 6 digit PIN to approve withdrawals and deposits.
-//             </p>
-
-//             <form className="space-y-2 text-xs sm:text-sm" onSubmit={handlePinUpdate}>
-//               <div className="space-y-1">
-//                 <label className="block text-gray-300">Current PIN (optional)</label>
-//                 <input
-//                   type="password"
-//                   maxLength={6}
-//                   value={pinForm.currentPin}
-//                   onChange={(e) =>
-//                     setPinForm({ ...pinForm, currentPin: e.target.value })
-//                   }
-//                   className="w-full rounded-lg bg-[#151515] border border-dashed border-gray-700 px-3 py-2 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/60"
-//                 />
-//               </div>
-//               <div className="space-y-1">
-//                 <label className="block text-gray-300">New PIN</label>
-//                 <input
-//                   type="password"
-//                   maxLength={6}
-//                   value={pinForm.newPin}
-//                   onChange={(e) =>
-//                     setPinForm({ ...pinForm, newPin: e.target.value })
-//                   }
-//                   className="w-full rounded-lg bg-[#151515] border border-dashed border-gray-700 px-3 py-2 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/60"
-//                 />
-//               </div>
-//               <div className="space-y-1">
-//                 <label className="block text-gray-300">Confirm New PIN</label>
-//                 <input
-//                   type="password"
-//                   maxLength={6}
-//                   value={pinForm.confirmPin}
-//                   onChange={(e) =>
-//                     setPinForm({ ...pinForm, confirmPin: e.target.value })
-//                   }
-//                   className="w-full rounded-lg bg-[#151515] border border-dashed border-gray-700 px-3 py-2 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/60"
-//                 />
-//               </div>
-
-//               <div className="pt-2 flex justify-end">
-//                 <button
-//                   type="submit"
-//                   disabled={loading}
-//                   className="px-4 py-2 rounded-lg bg-gradient-to-r from-emerald-400 to-emerald-600 text-black font-semibold text-xs sm:text-sm hover:brightness-110 disabled:opacity-60 transition"
-//                 >
-//                   Save PIN
-//                 </button>
-//               </div>
-//             </form>
-//           </div>
-//         </section>
-//       </main>
-//     </div>
-//   )
-// }
-
-// export default SettingsPage
