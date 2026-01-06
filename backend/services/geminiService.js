@@ -13,7 +13,7 @@ export async function compareFaces(currentImage, storedImage) {
       sizeDifference: Math.abs(cleanCurrent.length - cleanStored.length)
     });
     
-    // ✅ DEMO MODE: Choose behavior
+   
     const DEMO_MODE = "SMART"; // Options: "SMART", "ALWAYS_TRUE", "ALWAYS_FALSE"
     
     let isMatch;
