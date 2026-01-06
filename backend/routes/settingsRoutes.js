@@ -373,14 +373,13 @@ router.put('/password', auth, async (req, res) => {
     res.status(500).json({ message: 'Server error' })
   }
 })
-
 // ---------------------------------------------------
-// ✅ FIXED: PUT /api/settings/transaction-pin (FACE REQUIRED)
-// Body: { currentPin?, newPin, faceData }
+// ✅ FIXED: PUT /api/settings/transaction-pin (FACE ONLY)
+// Body: { newPin, faceData }
 // ---------------------------------------------------
 router.put('/transaction-pin', auth, async (req, res) => {
   try {
-    const { currentPin, newPin, faceData } = req.body
+    const { newPin, faceData } = req.body
 
     if (!newPin) {
       return res.status(400).json({ message: 'New PIN is required' })
@@ -399,16 +398,6 @@ router.put('/transaction-pin', auth, async (req, res) => {
     const faceOk = await verifyFaceForUser(user, faceData)
     if (!faceOk) {
       return res.status(401).json({ message: 'Face verification failed' })
-    }
-
-    if (user.hasUpiPin) {
-      if (!currentPin) {
-        return res.status(400).json({ message: 'Current PIN required' })
-      }
-      const ok = await bcrypt.compare(currentPin, user.upiPin)
-      if (!ok) {
-        return res.status(400).json({ message: 'Current PIN is incorrect' })
-      }
     }
 
     if (!/^[0-9]{4}$/.test(newPin) && !/^[0-9]{6}$/.test(newPin)) {

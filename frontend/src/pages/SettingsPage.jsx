@@ -1698,11 +1698,12 @@ function SettingsPage() {
         return
       }
 
-   await api.put(
+ await api.put(
   '/settings/transaction-pin',
-  { currentPin: pinForm.currentPin || undefined, newPin: pinForm.newPin, faceData: pinVerifyFace },
+  { newPin: pinForm.newPin, faceData: pinVerifyFace },
   { headers }
 )
+
 
 
       setMessage('✅ Transaction PIN updated successfully')
