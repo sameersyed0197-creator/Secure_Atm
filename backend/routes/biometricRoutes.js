@@ -24,51 +24,99 @@ router.get('/status', auth, async (req, res) => {
   }
 })
 
-// ---------------------------------------------------
-// POST /api/biometric/register-face
-// ---------------------------------------------------
+// // ---------------------------------------------------
+// // POST /api/biometric/register-face
+// // ---------------------------------------------------
+// router.post('/register-face', auth, async (req, res) => {
+//   try {
+//     const { faceData } = req.body
+
+//     if (!faceData) {
+//       return res.status(400).json({ message: 'Face data required' })
+//     }
+
+//     // ✅ Validate base64 format
+//     if (!faceData.startsWith('data:image/')) {
+//       return res.status(400).json({ message: 'Invalid face data format' })
+//     }
+
+//     // ✅ Check minimum size (at least 5KB for real face photo)
+//     if (faceData.length < 5000) {
+//       return res.status(400).json({ 
+//         message: 'Face data too small - capture failed' 
+//       })
+//     }
+
+//     const user = await User.findById(req.user.userId)
+//     if (!user) return res.status(404).json({ message: 'User not found' })
+
+//     // 🔄 Allow unlimited face updates
+//     user.faceData = faceData
+//     user.faceRegistered = true
+//     await user.save()
+
+//     console.log(`✅ Face registered/updated for user: ${user.email}`)
+    
+//     res.json({ 
+//       success: true, 
+//       message: user.faceRegistered 
+//         ? 'Face updated successfully' 
+//         : 'Face registered successfully',
+//       faceRegistered: true
+//     })
+//   } catch (err) {
+//     console.error('FACE REGISTRATION ERROR:', err)
+//     res.status(500).json({ message: 'Server error: ' + err.message })
+//   }
+// })
 router.post('/register-face', auth, async (req, res) => {
   try {
-    const { faceData } = req.body
+    const { faceData } = req.body;
 
-    if (!faceData) {
-      return res.status(400).json({ message: 'Face data required' })
-    }
-
-    // ✅ Validate base64 format
-    if (!faceData.startsWith('data:image/')) {
-      return res.status(400).json({ message: 'Invalid face data format' })
-    }
-
-    // ✅ Check minimum size (at least 5KB for real face photo)
-    if (faceData.length < 5000) {
+    // 🔧 FIX 1: Check for empty string AND null/undefined
+    if (!faceData || faceData === '' || typeof faceData !== 'string') {
       return res.status(400).json({ 
-        message: 'Face data too small - capture failed' 
-      })
+        message: 'Face data is required and must be a non-empty string' 
+      });
     }
 
-    const user = await User.findById(req.user.userId)
-    if (!user) return res.status(404).json({ message: 'User not found' })
+    // 🔧 FIX 2: Stricter base64 validation
+    if (!faceData.startsWith('data:image/')) {
+      return res.status(400).json({ 
+        message: 'Invalid face data format - must be base64 image (data:image/...)' 
+      });
+    }
 
-    // 🔄 Allow unlimited face updates
-    user.faceData = faceData
-    user.faceRegistered = true
-    await user.save()
+    // 🔧 FIX 3: Much stricter size check (real faces = 15KB+)
+    if (faceData.length < 15000) {
+      return res.status(400).json({ 
+        message: 'Face image too small. Please recapture a clear frontal face (min 15KB)' 
+      });
+    }
 
-    console.log(`✅ Face registered/updated for user: ${user.email}`)
+    const user = await User.findById(req.user.userId);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // ✅ Now safe to save REAL face data
+    user.faceData = faceData;
+    user.faceRegistered = true;
+    await user.save();
+
+    console.log(`✅ Face registered for ${user.email}: ${faceData.length} chars`);
     
     res.json({ 
       success: true, 
-      message: user.faceRegistered 
-        ? 'Face updated successfully' 
-        : 'Face registered successfully',
-      faceRegistered: true
-    })
+      message: 'Face registered successfully',
+      faceDataLength: faceData.length,  // Debug info
+      faceRegistered: true 
+    });
   } catch (err) {
-    console.error('FACE REGISTRATION ERROR:', err)
-    res.status(500).json({ message: 'Server error: ' + err.message })
+    console.error('FACE REGISTRATION ERROR:', err);
+    res.status(500).json({ message: 'Server error: ' + err.message });
   }
-})
+});
 
 // // ---------------------------------------------------
 // // POST /api/biometric/verify-face
