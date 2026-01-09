@@ -70,33 +70,82 @@ router.post('/register-face', auth, async (req, res) => {
   }
 })
 
-// ---------------------------------------------------
+// // ---------------------------------------------------
+// // POST /api/biometric/verify-face
+// // ---------------------------------------------------
+// router.post('/verify-face', auth, async (req, res) => {
+//   try {
+//     const { faceData } = req.body
+//     const user = await User.findById(req.user.userId)
+
+//     if (!user || !user.faceRegistered || !user.faceData) {
+//       return res.status(400).json({ 
+//         message: 'Face not registered. Please register your face first.' 
+//       })
+//     }
+
+//     if (!faceData) {
+//       return res.status(400).json({ 
+//         message: 'Face data required for verification' 
+//       })
+//     }
+
+//     const isMatch = await compareFaces(faceData, user.faceData)
+
+//     if (!isMatch) {
+//       return res.status(401).json({ 
+//         verified: false, 
+//         message: 'Face verification failed - faces do not match' 
+//       })
+//     }
+
+//     // ✅ Generate short-lived token for withdrawal
+//     const biometricToken = jwt.sign(
+//       { userId: user._id, type: 'face' },
+//       process.env.JWT_SECRET,
+//       { expiresIn: '2m' }
+//     )
+
+//     res.json({
+//       verified: true,
+//       message: 'Face verified successfully',
+//       biometricToken,
+//     })
+//   } catch (err) {
+//     console.error('FACE VERIFICATION ERROR:', err)
+//     res.status(500).json({ message: 'Server error: ' + err.message })
+//   }
+// })
+
+
+
+
 // POST /api/biometric/verify-face
-// ---------------------------------------------------
 router.post('/verify-face', auth, async (req, res) => {
   try {
-    const { faceData } = req.body
-    const user = await User.findById(req.user.userId)
+    const { faceData } = req.body; // Incoming base64 from camera
+    const user = await User.findById(req.user.userId);
 
     if (!user || !user.faceRegistered || !user.faceData) {
       return res.status(400).json({ 
         message: 'Face not registered. Please register your face first.' 
-      })
+      });
     }
 
     if (!faceData) {
       return res.status(400).json({ 
         message: 'Face data required for verification' 
-      })
+      });
     }
 
-    const isMatch = await compareFaces(faceData, user.faceData)
+    // Call the updated compareFaces function
+    const isMatch = await compareFaces(faceData, user.faceData);
 
     if (!isMatch) {
       return res.status(401).json({ 
         verified: false, 
-        message: 'Face verification failed - faces do not match' 
-      })
+        message: 'Face verification failed - Identity could not be confirmed' 
+      });
     }
 
     // ✅ Generate short-lived token for withdrawal
@@ -104,18 +153,19 @@ router.post('/verify-face', auth, async (req, res) => {
       { userId: user._id, type: 'face' },
       process.env.JWT_SECRET,
       { expiresIn: '2m' }
-    )
+    );
 
     res.json({
       verified: true,
       message: 'Face verified successfully',
       biometricToken,
-    })
+    });
+    
   } catch (err) {
-    console.error('FACE VERIFICATION ERROR:', err)
-    res.status(500).json({ message: 'Server error: ' + err.message })
+    console.error('FACE VERIFICATION ROUTE ERROR:', err);
+    res.status(500).json({ message: 'Server error during verification' });
   }
-})
+});
 
 // ---------------------------------------------------
 // DELETE /api/biometric/remove-face
