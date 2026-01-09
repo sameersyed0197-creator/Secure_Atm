@@ -88,7 +88,7 @@ router.post('/register-face', auth, async (req, res) => {
     }
 
     // 🔧 FIX 3: Much stricter size check (real faces = 15KB+)
-    if (faceData.length < 15000) {
+    if (faceData.length < 8000) {
       return res.status(400).json({ 
         message: 'Face image too small. Please recapture a clear frontal face (min 15KB)' 
       });
