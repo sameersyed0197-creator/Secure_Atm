@@ -228,20 +228,33 @@ function WithdrawPage() {
   }
 
   const verifyFace = async () => {
-    try {
-      const token = localStorage.getItem('token')
-      const res = await api.post(
-        '/biometric/verify-face',
-        { faceData: capturedFace },
-        { headers: { Authorization: `Bearer ${token}` } }
-      )
-      return res.data.verified === true
-    } catch (err) {
-      console.error('Face verification error:', err)
-      setError(err.response?.data?.message || 'Face verification failed')
-      return false
-    }
+  try {
+    const token = localStorage.getItem('token')
+    const res = await api.post('/biometric/verify-face', { faceData: capturedFace }, { headers: { Authorization: `Bearer ${token}` } })
+    return res.data.biometricToken  // ← RETURNS TOKEN INSTEAD!
+  } catch (err) {
+    console.error('Face verification error:', err)
+    setError(err.response?.data?.message || 'Face verification failed')
+    return null  // ← Return null on error
   }
+}
+
+
+  // const verifyFace = async () => {
+  //   try {
+  //     const token = localStorage.getItem('token')
+  //     const res = await api.post(
+  //       '/biometric/verify-face',
+  //       { faceData: capturedFace },
+  //       { headers: { Authorization: `Bearer ${token}` } }
+  //     )
+  //     return res.data.verified === true
+  //   } catch (err) {
+  //     console.error('Face verification error:', err)
+  //     setError(err.response?.data?.message || 'Face verification failed')
+  //     return false
+  //   }
+  // }
 
   const processWithdrawal = async (fingerprintToken = null) => {
     setError('')
@@ -287,20 +300,36 @@ function WithdrawPage() {
         }
 
         if (chosenBiometric === 'face') {
-          if (!capturedFace) {
-            setError('Face verification required.')
-            setLoading(false)
-            return
-          }
+  if (!capturedFace) {
+    setError('Face verification required.')
+    return
+  }
 
-          const faceOk = await verifyFace()
-          if (!faceOk) {
-            setError('Face verification failed.')
-            setLoading(false)
-            return
-          }
-          requestBody.faceData = capturedFace
-        }
+  const faceToken = await verifyFace()  // ← Now gets biometricToken
+  if (!faceToken) {
+    setError('Face verification failed.')
+    return
+  }
+  
+  requestBody.biometricToken = faceToken  // ← Send TOKEN, not faceData
+}
+
+
+        // if (chosenBiometric === 'face') {
+        //   if (!capturedFace) {
+        //     setError('Face verification required.')
+        //     setLoading(false)
+        //     return
+        //   }
+
+        //   const faceOk = await verifyFace()
+        //   if (!faceOk) {
+        //     setError('Face verification failed.')
+        //     setLoading(false)
+        //     return
+        //   }
+        //   requestBody.faceData = capturedFace
+        // }
       }
 
       const response = await api.post('/wallet/withdraw', requestBody, {
