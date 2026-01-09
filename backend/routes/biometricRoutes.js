@@ -119,26 +119,33 @@ router.post('/register-face', auth, async (req, res) => {
 
 
 
-
-// POST /api/biometric/verify-face
 router.post('/verify-face', auth, async (req, res) => {
   try {
-    const { faceData } = req.body; // Incoming base64 from camera
+    const { faceData } = req.body;
     const user = await User.findById(req.user.userId);
 
     if (!user || !user.faceRegistered || !user.faceData) {
       return res.status(400).json({ 
+        verified: false,
         message: 'Face not registered. Please register your face first.' 
       });
     }
 
     if (!faceData) {
       return res.status(400).json({ 
+        verified: false,
         message: 'Face data required for verification' 
       });
     }
 
-    // Call the updated compareFaces function
+    // Basic sanity check – avoid blank/very tiny images
+    if (faceData.length < 5000) {
+      return res.status(400).json({
+        verified: false,
+        message: 'Captured face image is too small or invalid',
+      });
+    }
+
     const isMatch = await compareFaces(faceData, user.faceData);
 
     if (!isMatch) {
@@ -148,22 +155,21 @@ router.post('/verify-face', auth, async (req, res) => {
       });
     }
 
-    // ✅ Generate short-lived token for withdrawal
+    // short-lived biometric token (already good)
     const biometricToken = jwt.sign(
       { userId: user._id, type: 'face' },
       process.env.JWT_SECRET,
       { expiresIn: '2m' }
     );
 
-    res.json({
+    return res.json({
       verified: true,
       message: 'Face verified successfully',
       biometricToken,
     });
-    
   } catch (err) {
     console.error('FACE VERIFICATION ROUTE ERROR:', err);
-    res.status(500).json({ message: 'Server error during verification' });
+    return res.status(500).json({ message: 'Server error during verification' });
   }
 });
 

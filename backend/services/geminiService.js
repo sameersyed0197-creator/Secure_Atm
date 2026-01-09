@@ -71,29 +71,44 @@
 
 
 
+
+// services/geminiService.js
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
-// Initialize the API with your key
-const genAI = new GoogleGenerativeAI("AIzaSyCR3GYoRahUVFgsAnBUV_5zRDuCxEBzytM");
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+
+// Helper to safely extract JSON from model text
+function extractJson(text) {
+  // Try to find a {...} block
+  const match = text.match(/\{[\s\S]*\}/);
+  if (!match) throw new Error("No JSON object found in model response");
+  return JSON.parse(match[0]);
+}
 
 export async function compareFaces(currentImageBase64, storedImageBase64) {
-  console.log('🎯 [REAL GEMINI] Performing Facial Comparison...');
+  console.log("🎯 [REAL GEMINI] Performing Facial Comparison...");
 
   try {
     const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
-    // Helper to strip metadata (e.g., "data:image/jpeg;base64,") if present
-    const cleanImage = (base64) => base64.split(',').pop();
+    const cleanImage = (base64) => base64.split(",").pop();
 
     const prompt = `
-      Task: Biometric Facial Verification.
-      Compare the person in Image 1 with the person in Image 2.
-      Are they the EXACT same individual? 
-      
-      Respond in this exact JSON format:
+      You are a strict biometric facial verification engine.
+
+      Compare Image 1 and Image 2 and decide if they show the EXACT same person.
+
+      Rules:
+      - Only return "isMatch": true if you are VERY sure (human-identical).
+      - Small differences like lighting / angle are ok.
+      - If faces look similar but could be different people, you MUST return "isMatch": false.
+      - If images are low-quality, blurred, occluded, or uncertain, return "isMatch": false.
+
+      Respond ONLY in valid JSON, no extra text:
+
       {
-        "isMatch": true/false,
-        "confidence": 0-100,
+        "isMatch": true or false,
+        "confidence": number from 0 to 100,
         "reason": "short explanation"
       }
     `;
@@ -102,33 +117,51 @@ export async function compareFaces(currentImageBase64, storedImageBase64) {
       {
         inlineData: {
           data: cleanImage(currentImageBase64),
-          mimeType: "image/jpeg"
-        }
+          mimeType: "image/jpeg",
+        },
       },
       {
         inlineData: {
           data: cleanImage(storedImageBase64),
-          mimeType: "image/jpeg"
-        }
-      }
+          mimeType: "image/jpeg",
+        },
+      },
     ];
 
     const result = await model.generateContent([prompt, ...imageParts]);
-    const response = await result.response;
-    const text = response.text();
-    
-    // Clean and parse the JSON response from Gemini
-    const cleanJson = text.replace(/```json|```/g, "").trim();
-    const analysis = JSON.parse(cleanJson);
+    const text = result.response.text();
 
-    console.log(`🤖 Analysis Result: ${analysis.isMatch ? '✅ MATCH' : '❌ NO MATCH'} (${analysis.confidence}%)`);
+    console.log("🔍 Raw Gemini text:", text);
+
+    const analysis = extractJson(text);
+
+    console.log(
+      `🤖 Parsed: isMatch=${analysis.isMatch}, confidence=${analysis.confidence}`
+    );
     console.log(`📝 Reason: ${analysis.reason}`);
 
-    return analysis.isMatch;
+    // 🔐 HARD THRESHOLD
+    const MIN_CONFIDENCE = 90;
 
+    const isAccepted =
+      analysis &&
+      analysis.isMatch === true &&
+      typeof analysis.confidence === "number" &&
+      analysis.confidence >= MIN_CONFIDENCE;
+
+    if (!isAccepted) {
+      console.log(
+        "🚫 Face verification rejected by threshold or model decision."
+      );
+    } else {
+      console.log("✅ Face verification accepted (high confidence).");
+    }
+
+    // Fail closed on any uncertainty
+    return isAccepted;
   } catch (error) {
-    console.error('❌ Gemini API Error:', error.message);
-    // Fallback: Default to false for security if API fails
+    console.error("❌ Gemini compareFaces error:", error);
+    // Security: never auto-accept when something goes wrong
     return false;
   }
 }
