@@ -557,63 +557,57 @@
 
 
 
-// frontend/src/utils/faceComparison.js
-import * as faceapi from 'face-api.js';
+// backend/services/faceComparison.js
 
-let modelsLoaded = false;
-
-export async function loadModels() {
-  if (modelsLoaded) return;
-  
-  const MODEL_URL = '/models'; // Put models in public/models folder
-  
-  await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
-  await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
-  await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL);
-  
-  modelsLoaded = true;
-  console.log('✅ Face-api models loaded');
-}
-
-export async function compareFaces(imageElement1, imageElement2) {
-  console.log('🎯 [FACE-API] Performing Facial Comparison...');
+export async function compareFaces(currentImageBase64, storedImageBase64) {
+  console.log("🎯 [Face++] Performing Facial Comparison...");
 
   try {
-    await loadModels();
-
-    // Detect faces
-    const detection1 = await faceapi
-      .detectSingleFace(imageElement1, new faceapi.TinyFaceDetectorOptions())
-      .withFaceLandmarks()
-      .withFaceDescriptor();
-
-    const detection2 = await faceapi
-      .detectSingleFace(imageElement2, new faceapi.TinyFaceDetectorOptions())
-      .withFaceLandmarks()
-      .withFaceDescriptor();
-
-    if (!detection1 || !detection2) {
-      console.log('❌ No face detected');
-      return false;
+    if (!currentImageBase64 || !storedImageBase64) {
+      throw new Error("Missing image data");
     }
 
-    // Calculate distance
-    const distance = faceapi.euclideanDistance(
-      detection1.descriptor,
-      detection2.descriptor
-    );
+    const cleanBase64 = (b64) => b64.split(',').pop();
 
-    console.log('🔍 Distance:', distance);
+    // Create form data
+    const formData = new URLSearchParams();
+    formData.append('api_key', process.env.FACEPP_API_KEY);
+    formData.append('api_secret', process.env.FACEPP_API_SECRET);
+    formData.append('image_base64_1', cleanBase64(currentImageBase64));
+    formData.append('image_base64_2', cleanBase64(storedImageBase64));
 
-    const confidence = Math.round((1 - Math.min(distance, 1)) * 100);
-    const THRESHOLD = 0.6;
-    const isMatch = distance < THRESHOLD && confidence >= 70;
+    const response = await fetch('https://api-us.faceplusplus.com/facepp/v3/compare', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded'
+      },
+      body: formData.toString()
+    });
 
-    console.log('✅ DECISION:', isMatch ? 'PASS' : 'FAIL', `(${confidence}%)`);
+    if (!response.ok) {
+      throw new Error(`Face++ API error: ${response.status}`);
+    }
+
+    const data = await response.json();
+
+    if (data.error_message) {
+      throw new Error(data.error_message);
+    }
+
+    const confidence = Math.round(data.confidence);
+    const isMatch = confidence >= 70;
+
+    console.log('🔍 Raw Face++ Response:', {
+      confidence: data.confidence,
+      threshold: data.thresholds
+    });
+    console.log('🤖 Analysis:', { confidence, isMatch });
+    console.log('✅ DECISION:', isMatch ? 'PASS' : `FAIL (conf: ${confidence}%)`);
+    
     return isMatch;
 
   } catch (error) {
-    console.error('❌ Face-api error:', error);
+    console.error('❌ Face++ error:', error.message);
     return false;
   }
 }
