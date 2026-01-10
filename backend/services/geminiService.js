@@ -176,146 +176,68 @@
 
 
 
-// import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
-// const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
-// function extractJson(text) {
-//   const match = text.match(/\{[\s\S]*\}/);
-//   if (!match) throw new Error("No JSON object found in model response");
-//   return JSON.parse(match[0]);
-// }
-
-// export async function compareFaces(currentImageBase64, storedImageBase64) {
-//   console.log("🎯 [REAL GEMINI] Performing Facial Comparison...");
-
-//   try {
-//     const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
-//     const cleanImage = (base64) => base64.split(",").pop();
-
-//     const prompt = `
-// You are doing ATM face verification. Image 1 = current camera photo, Image 2 = registered photo.
-
-// SAME PERSON if:
-// • Core facial structure matches (eyes/nose/mouth positions)
-// • Minor lighting, angle (<30°), glasses OK
-// • Be generous - real photos always have slight differences
-
-// DIFFERENT PERSON only if clearly two distinct faces.
-
-// Return ONLY JSON (no other text):
-// {
-//   "isMatch": true/false,
-//   "confidence": 0-100,
-//   "reason": "1 sentence"
-// }
-// `;
-
-//     const imageParts = [
-//       { inlineData: { data: cleanImage(currentImageBase64), mimeType: "image/jpeg" } },
-//       { inlineData: { data: cleanImage(storedImageBase64), mimeType: "image/jpeg" } }
-//     ];
-
-//     const result = await model.generateContent([prompt, ...imageParts]);
-//     const text = result.response.text();
-
-//     console.log("🔍 Raw Gemini:", text);
-//     const analysis = extractJson(text);
-//     console.log("🤖 Analysis:", analysis);
-
-//     // ✅ FIXED: Realistic threshold
-//     const MIN_CONFIDENCE = 70;
-//     const isAccepted = analysis?.isMatch === true && 
-//                       typeof analysis.confidence === "number" && 
-//                       analysis.confidence >= MIN_CONFIDENCE;
-
-//     console.log("✅ DECISION:", isAccepted ? "PASS" : `FAIL (conf: ${analysis.confidence})`);
-//     return isAccepted;
-
-//   } catch (error) {
-//     console.error("❌ Gemini error:", error.message);
-//     return false;
-//   }
-// }
-
-
-
-
-import * as faceapi from '@vladmandic/face-api';
-import * as canvas from 'canvas';
-import fetch from 'node-fetch';
-
-const { Canvas, Image, ImageData } = canvas;
-faceapi.env.monkeyPatch({ Canvas, Image, ImageData });
-
-let modelsLoaded = false;
-
-async function loadModels() {
-  if (modelsLoaded) return;
-  
-  const MODEL_PATH = './models';
-  
-  await faceapi.nets.ssdMobilenetv1.loadFromDisk(MODEL_PATH);
-  await faceapi.nets.faceLandmark68Net.loadFromDisk(MODEL_PATH);
-  await faceapi.nets.faceRecognitionNet.loadFromDisk(MODEL_PATH);
-  
-  modelsLoaded = true;
-  console.log('✅ Face-api models loaded');
-}
-
-function base64ToImage(base64String) {
-  const cleanBase64 = base64String.split(',').pop();
-  const buffer = Buffer.from(cleanBase64, 'base64');
-  const img = new Image();
-  img.src = buffer;
-  return img;
+function extractJson(text) {
+  const match = text.match(/\{[\s\S]*\}/);
+  if (!match) throw new Error("No JSON object found in model response");
+  return JSON.parse(match[0]);
 }
 
 export async function compareFaces(currentImageBase64, storedImageBase64) {
-  console.log('🎯 [FACE-API] Performing Facial Comparison...');
+  console.log("🎯 [REAL GEMINI] Performing Facial Comparison...");
 
   try {
-    await loadModels();
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+    const cleanImage = (base64) => base64.split(",").pop();
 
-    const currentImg = base64ToImage(currentImageBase64);
-    const storedImg = base64ToImage(storedImageBase64);
+    const prompt = `
+You are doing ATM face verification. Image 1 = current camera photo, Image 2 = registered photo.
 
-    const currentDetection = await faceapi
-      .detectSingleFace(currentImg)
-      .withFaceLandmarks()
-      .withFaceDescriptor();
+SAME PERSON if:
+• Core facial structure matches (eyes/nose/mouth positions)
+• Minor lighting, angle (<30°), glasses OK
+• Be generous - real photos always have slight differences
 
-    const storedDetection = await faceapi
-      .detectSingleFace(storedImg)
-      .withFaceLandmarks()
-      .withFaceDescriptor();
+DIFFERENT PERSON only if clearly two distinct faces.
 
-    if (!currentDetection || !storedDetection) {
-      console.log('❌ No face detected in one or both images');
-      return false;
-    }
+Return ONLY JSON (no other text):
+{
+  "isMatch": true/false,
+  "confidence": 0-100,
+  "reason": "1 sentence"
+}
+`;
 
-    const distance = faceapi.euclideanDistance(
-      currentDetection.descriptor,
-      storedDetection.descriptor
-    );
+    const imageParts = [
+      { inlineData: { data: cleanImage(currentImageBase64), mimeType: "image/jpeg" } },
+      { inlineData: { data: cleanImage(storedImageBase64), mimeType: "image/jpeg" } }
+    ];
 
-    console.log('🔍 Euclidean Distance:', distance);
+    const result = await model.generateContent([prompt, ...imageParts]);
+    const text = result.response.text();
 
-    const confidence = Math.round((1 - Math.min(distance, 1)) * 100);
-    const DISTANCE_THRESHOLD = 0.6;
+    console.log("🔍 Raw Gemini:", text);
+    const analysis = extractJson(text);
+    console.log("🤖 Analysis:", analysis);
+
+    // ✅ FIXED: Realistic threshold
     const MIN_CONFIDENCE = 70;
+    const isAccepted = analysis?.isMatch === true && 
+                      typeof analysis.confidence === "number" && 
+                      analysis.confidence >= MIN_CONFIDENCE;
 
-    const isMatch = distance < DISTANCE_THRESHOLD;
-    const isAccepted = isMatch && confidence >= MIN_CONFIDENCE;
-
-    console.log('🤖 Analysis:', { isMatch, confidence, distance });
-    console.log('✅ DECISION:', isAccepted ? 'PASS' : `FAIL (conf: ${confidence}%)`);
-
+    console.log("✅ DECISION:", isAccepted ? "PASS" : `FAIL (conf: ${analysis.confidence})`);
     return isAccepted;
 
   } catch (error) {
-    console.error('❌ Face-api error:', error.message);
+    console.error("❌ Gemini error:", error.message);
     return false;
   }
 }
+
+
+
+
