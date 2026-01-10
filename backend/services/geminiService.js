@@ -176,6 +176,71 @@
 
 
 
+// import { GoogleGenerativeAI } from "@google/generative-ai";
+
+// const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+
+// function extractJson(text) {
+//   const match = text.match(/\{[\s\S]*\}/);
+//   if (!match) throw new Error("No JSON object found in model response");
+//   return JSON.parse(match[0]);
+// }
+
+// export async function compareFaces(currentImageBase64, storedImageBase64) {
+//   console.log("🎯 [REAL GEMINI] Performing Facial Comparison...");
+
+//   try {
+//     const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+//     const cleanImage = (base64) => base64.split(",").pop();
+
+//     const prompt = `
+// You are doing ATM face verification. Image 1 = current camera photo, Image 2 = registered photo.
+
+// SAME PERSON if:
+// • Core facial structure matches (eyes/nose/mouth positions)
+// • Minor lighting, angle (<30°), glasses OK
+// • Be generous - real photos always have slight differences
+
+// DIFFERENT PERSON only if clearly two distinct faces.
+
+// Return ONLY JSON (no other text):
+// {
+//   "isMatch": true/false,
+//   "confidence": 0-100,
+//   "reason": "1 sentence"
+// }
+// `;
+
+//     const imageParts = [
+//       { inlineData: { data: cleanImage(currentImageBase64), mimeType: "image/jpeg" } },
+//       { inlineData: { data: cleanImage(storedImageBase64), mimeType: "image/jpeg" } }
+//     ];
+
+//     const result = await model.generateContent([prompt, ...imageParts]);
+//     const text = result.response.text();
+
+//     console.log("🔍 Raw Gemini:", text);
+//     const analysis = extractJson(text);
+//     console.log("🤖 Analysis:", analysis);
+
+//     // ✅ FIXED: Realistic threshold
+//     const MIN_CONFIDENCE = 70;
+//     const isAccepted = analysis?.isMatch === true && 
+//                       typeof analysis.confidence === "number" && 
+//                       analysis.confidence >= MIN_CONFIDENCE;
+
+//     console.log("✅ DECISION:", isAccepted ? "PASS" : `FAIL (conf: ${analysis.confidence})`);
+//     return isAccepted;
+
+//   } catch (error) {
+//     console.error("❌ Gemini error:", error.message);
+//     return false;
+//   }
+// }
+
+
+
+
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
@@ -187,10 +252,15 @@ function extractJson(text) {
 }
 
 export async function compareFaces(currentImageBase64, storedImageBase64) {
-  console.log("🎯 [REAL GEMINI] Performing Facial Comparison...");
+  console.log("🎯 [GEMINI] Performing Facial Comparison...");
 
   try {
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+    // Validate inputs
+    if (!currentImageBase64 || !storedImageBase64) {
+      throw new Error("Missing image data");
+    }
+
+    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" });
     const cleanImage = (base64) => base64.split(",").pop();
 
     const prompt = `
@@ -223,21 +293,27 @@ Return ONLY JSON (no other text):
     const analysis = extractJson(text);
     console.log("🤖 Analysis:", analysis);
 
-    // ✅ FIXED: Realistic threshold
-    const MIN_CONFIDENCE = 70;
-    const isAccepted = analysis?.isMatch === true && 
-                      typeof analysis.confidence === "number" && 
-                      analysis.confidence >= MIN_CONFIDENCE;
+    // Validate response structure
+    if (typeof analysis.isMatch !== 'boolean' || typeof analysis.confidence !== 'number') {
+      throw new Error("Invalid response format from Gemini");
+    }
 
-    console.log("✅ DECISION:", isAccepted ? "PASS" : `FAIL (conf: ${analysis.confidence})`);
+    const MIN_CONFIDENCE = 70;
+    const isAccepted = analysis.isMatch === true && analysis.confidence >= MIN_CONFIDENCE;
+
+    console.log("✅ DECISION:", isAccepted ? "PASS" : `FAIL (conf: ${analysis.confidence}%)`);
+    console.log("📝 Reason:", analysis.reason);
+    
     return isAccepted;
 
   } catch (error) {
     console.error("❌ Gemini error:", error.message);
+    
+    // Log more details for debugging
+    if (error.response) {
+      console.error("API Response Error:", error.response);
+    }
+    
     return false;
   }
 }
-
-
-
-
