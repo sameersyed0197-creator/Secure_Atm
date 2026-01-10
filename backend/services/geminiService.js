@@ -260,7 +260,7 @@ export async function compareFaces(currentImageBase64, storedImageBase64) {
       throw new Error("Missing image data");
     }
 
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-exp" });
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-exp" });
     const cleanImage = (base64) => base64.split(",").pop();
 
     const prompt = `
