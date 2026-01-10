@@ -227,17 +227,20 @@ function WithdrawPage() {
     }
   }
 
-  const verifyFace = async () => {
+// Replace your ENTIRE verifyFace function with this:
+const verifyFace = async (faceData) => {
   try {
-    const token = localStorage.getItem('token')
-    const res = await api.post('/biometric/verify-face', { faceData: capturedFace }, { headers: { Authorization: `Bearer ${token}` } })
-    return res.data.biometricToken  // ← RETURNS TOKEN INSTEAD!
+    // ✅ NO MANUAL HEADERS - api.js handles automatically
+    const res = await api.post('/biometric/verify-face', { faceData });
+    
+    // ✅ RETURN biometricToken for withdrawal (NOT just verified boolean)
+    return res.data.biometricToken;
   } catch (err) {
-    console.error('Face verification error:', err)
-    setError(err.response?.data?.message || 'Face verification failed')
-    return null  // ← Return null on error
+    console.error('Face verification error:', err);
+    setError(err.response?.data?.message || 'Face verification failed');
+    return null;
   }
-}
+};
 
 
   // const verifyFace = async () => {
@@ -299,20 +302,23 @@ function WithdrawPage() {
           requestBody.biometricToken = tokenToUse
         }
 
-        if (chosenBiometric === 'face') {
+       // In WithdrawPage.jsx - Update face verification section:
+if (chosenBiometric === 'face') {
   if (!capturedFace) {
-    setError('Face verification required.')
-    return
+    setError('Face verification required.');
+    return;
   }
 
-  const faceToken = await verifyFace()  // ← Now gets biometricToken
+  // ✅ Use fixed verifyFace - returns token now
+  const faceToken = await verifyFace(capturedFace);
   if (!faceToken) {
-    setError('Face verification failed.')
-    return
+    setError('Face verification failed.');
+    return;
   }
   
-  requestBody.biometricToken = faceToken  // ← Send TOKEN, not faceData
+  requestBody.biometricToken = faceToken;  // Send token to backend
 }
+
 
 
         // if (chosenBiometric === 'face') {
