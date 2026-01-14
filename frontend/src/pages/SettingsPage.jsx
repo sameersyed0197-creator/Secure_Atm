@@ -2056,8 +2056,16 @@ function SettingsPage() {
                   </div>
                 ) : passwordVerifyFace ? (
                   <div className="space-y-2">
-                    <div className="relative rounded-2xl overflow-hidden border-2 border-amber-300 bg-black shadow-lg">
+                    <div className="relative rounded-2xl overflow-hidden border-2 border-emerald-400 bg-black shadow-lg">
                       <img src={passwordVerifyFace} alt="Password verification face" className="w-full h-40 object-cover" />
+                      <div className="absolute top-2 right-2 bg-emerald-500 rounded-full p-2 shadow-lg">
+                        <svg className="h-5 w-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
+                        </svg>
+                      </div>
+                      <div className="absolute bottom-0 left-0 right-0 bg-emerald-600/90 py-2 px-3">
+                        <p className="text-xs text-white text-center font-bold">✓ Face Verified Successfully</p>
+                      </div>
                     </div>
                     <button
                       type="button"
@@ -2143,8 +2151,16 @@ function SettingsPage() {
                   </div>
                 ) : pinVerifyFace ? (
                   <div className="space-y-2">
-                    <div className="relative rounded-2xl overflow-hidden border-2 border-amber-300 bg-black shadow-lg">
+                    <div className="relative rounded-2xl overflow-hidden border-2 border-emerald-400 bg-black shadow-lg">
                       <img src={pinVerifyFace} alt="PIN verification face" className="w-full h-40 object-cover" />
+                      <div className="absolute top-2 right-2 bg-emerald-500 rounded-full p-2 shadow-lg">
+                        <svg className="h-5 w-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
+                        </svg>
+                      </div>
+                      <div className="absolute bottom-0 left-0 right-0 bg-emerald-600/90 py-2 px-3">
+                        <p className="text-xs text-white text-center font-bold">✓ Face Verified Successfully</p>
+                      </div>
                     </div>
                     <button
                       type="button"
