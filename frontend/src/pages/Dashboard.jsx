@@ -266,8 +266,12 @@ useEffect(() => {
                   ₹ {dailyLimit.toFixed(2)}
                 </p>
               </div>
-              <span className="px-2 py-1 rounded-full text-[11px] bg-emerald-50 border-2 border-emerald-500/70 text-emerald-600 font-semibold">
-                Remaining today
+              <span className={`px-2 py-1 rounded-full text-[11px] font-semibold ${
+                usedPercent >= 100 
+                  ? 'bg-emerald-50 border-2 border-emerald-500/70 text-emerald-600'
+                  : 'bg-emerald-50 border-2 border-emerald-500/70 text-emerald-600'
+              }`}>
+                {usedPercent >= 100 ? 'Completed' : 'Remaining today'}
               </span>
             </div>
 

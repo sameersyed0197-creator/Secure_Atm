@@ -356,9 +356,17 @@ if (chosenBiometric === 'face') {
       setStep(4)
     } catch (err) {
       console.error('❌ Withdrawal error:', err)
-      setError(err.response?.data?.message || 'Withdrawal failed.')
+      const errorMsg = err.response?.data?.message || 'Withdrawal failed.'
+      setError(errorMsg)
       setCapturedFace(null)
       setBiometricToken(null)
+      
+      // Don't navigate away - stay on current step
+      if (err.response?.status === 401 && errorMsg.includes('Face verification failed')) {
+        // Reset face capture to allow retry
+        setChosenBiometric('face')
+        setShowCamera(false)
+      }
     } finally {
       setLoading(false)
     }
