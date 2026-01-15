@@ -818,7 +818,7 @@ if (chosenBiometric === 'face') {
           )}
 
           {/* Step 4: Success Card */}
-          {step === 4 && withdrawData ? (
+          {step === 4 && withdrawData && (
             <div className="space-y-6 py-4">
               {/* Success Icon */}
               <div className="flex justify-center">
