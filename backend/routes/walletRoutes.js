@@ -1,5 +1,6 @@
 import express from 'express'
 import bcrypt from 'bcryptjs'
+import jwt from 'jsonwebtoken'
 import User from '../models/User.js'
 import auth from '../middleware/auth.js'
 import Transaction from '../models/Transaction.js'
@@ -54,54 +55,32 @@ router.post('/withdraw', auth, async (req, res) => {
     if (amt >= biometricThreshold) {
       let biometricVerified = false
 
-      // ✅ CHECK FINGERPRINT TOKEN FIRST
+      // ✅ CHECK BIOMETRIC TOKEN (FACE OR FINGERPRINT)
       if (biometricToken) {
-        console.log('🔐 Checking fingerprint token...')
+        console.log('🔐 Checking biometric token...')
         
-        if (!user.biometricToken || !user.biometricTokenExpiry) {
-          return res.status(401).json({ 
-            message: 'No biometric token found. Please verify again.' 
-          })
+        // Try to verify the token directly (for face verification)
+        try {
+          const decoded = jwt.verify(biometricToken, process.env.JWT_SECRET)
+          if (decoded.userId === user._id.toString()) {
+            biometricVerified = true
+            console.log('✅ Biometric token validated (face or fingerprint)')
+          }
+        } catch (tokenErr) {
+          // If JWT verification fails, check stored fingerprint token
+          if (user.biometricToken === biometricToken && user.biometricTokenExpiry > new Date()) {
+            biometricVerified = true
+            console.log('✅ Fingerprint token validated')
+            user.biometricToken = undefined
+            user.biometricTokenExpiry = undefined
+          }
         }
-
-        if (user.biometricToken !== biometricToken) {
-          return res.status(401).json({ 
-            message: 'Invalid biometric token' 
-          })
-        }
-
-        if (user.biometricTokenExpiry < new Date()) {
-          return res.status(401).json({ 
-            message: 'Biometric token expired. Please verify again.' 
-          })
-        }
-
-        biometricVerified = true
-        console.log('✅ Fingerprint token validated')
-
-        // ✅ Clear token after successful use
-        user.biometricToken = undefined
-        user.biometricTokenExpiry = undefined
-      }
-      // ✅ ELSE CHECK FACE DATA
-      else if (faceData) {
-        console.log('👤 Checking face data...')
         
-        if (!user.faceRegistered || !user.faceData) {
-          return res.status(400).json({ 
-            message: 'Face not registered. Please register your face in settings.' 
-          })
-        }
-
-        const faceOk = await compareFaces(faceData, user.faceData)
-        if (!faceOk) {
+        if (!biometricVerified) {
           return res.status(401).json({ 
-            message: 'Face verification failed - please try again' 
+            message: 'Invalid or expired biometric token' 
           })
         }
-
-        biometricVerified = true
-        console.log('✅ Face verification passed')
       }
       // ✅ NO BIOMETRIC PROVIDED
       else {
