@@ -230,14 +230,30 @@ function WithdrawPage() {
 // Replace your ENTIRE verifyFace function with this:
 const verifyFace = async (faceData) => {
   try {
-    // ✅ NO MANUAL HEADERS - api.js handles automatically
     const res = await api.post('/biometric/verify-face', { faceData });
     
-    // ✅ RETURN biometricToken for withdrawal (NOT just verified boolean)
-    return res.data.biometricToken;
+    // Check if verification was successful
+    if (res.data && res.data.verified && res.data.biometricToken) {
+      return res.data.biometricToken;
+    }
+    
+    // If verified is false, show error
+    setError(res.data?.message || 'Face verification failed');
+    return null;
   } catch (err) {
     console.error('Face verification error:', err);
-    setError(err.response?.data?.message || 'Face verification failed');
+    
+    // Handle different error responses
+    if (err.response?.data?.message) {
+      setError(err.response.data.message);
+    } else if (err.response?.status === 401) {
+      setError('Face verification failed - Identity could not be confirmed');
+    } else if (err.response?.status === 400) {
+      setError('Face not registered or invalid face data');
+    } else {
+      setError('Face verification failed - please try again');
+    }
+    
     return null;
   }
 };
@@ -306,14 +322,15 @@ const verifyFace = async (faceData) => {
 if (chosenBiometric === 'face') {
   if (!capturedFace) {
     setError('Face verification required.');
+    setLoading(false);
     return;
   }
 
   // ✅ Use fixed verifyFace - returns token now
   const faceToken = await verifyFace(capturedFace);
   if (!faceToken) {
-    setError('Face verification failed.');
-    return;
+    setLoading(false);
+    return; // Error already set by verifyFace
   }
   
   requestBody.biometricToken = faceToken;  // Send token to backend
@@ -801,7 +818,7 @@ if (chosenBiometric === 'face') {
           )}
 
           {/* Step 4: Success Card */}
-          {step === 4 && withdrawData && (
+          {step === 4 && withdrawData ? (
             <div className="space-y-6 py-4">
               {/* Success Icon */}
               <div className="flex justify-center">
@@ -931,7 +948,7 @@ if (chosenBiometric === 'face') {
           )}
 
           {/* Success Actions */}
-          {step === 4 && (
+          {step === 4 && withdrawData && (
             <div className="flex flex-col sm:flex-row gap-3 pt-3">
               <button
                 type="button"

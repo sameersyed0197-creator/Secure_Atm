@@ -1,5 +1,5 @@
 // src/App.jsx
-import { Routes, Route } from 'react-router-dom'
+import { Routes, Route, Navigate } from 'react-router-dom'
 import LandingPage from './pages/LandingPage'
 import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
@@ -19,9 +19,11 @@ function App() {
       <Route path="/dashboard" element={<Dashboard />} />
       <Route path="/settings" element={<SettingsPage />} />
       <Route path="/create-upi-pin" element={<CreateUpiPinPage />} />
-       <Route path="/deposit" element={<DepositPage />} />
-  <Route path="/withdraw" element={<WithdrawPage />} />
-  <Route path="/transactions" element={<TransactionsPage />} />
+      <Route path="/deposit" element={<DepositPage />} />
+      <Route path="/withdraw" element={<WithdrawPage />} />
+      <Route path="/transactions" element={<TransactionsPage />} />
+      {/* Catch-all route - redirect to dashboard or login */}
+      <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>
   )
 }
