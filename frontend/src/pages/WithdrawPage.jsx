@@ -232,24 +232,17 @@ const verifyFace = async (faceData) => {
   try {
     const res = await api.post('/biometric/verify-face', { faceData });
     
-    // Check if verification was successful
-    if (res.data && res.data.verified && res.data.biometricToken) {
+    if (res.data && res.data.verified === true && res.data.biometricToken) {
       return res.data.biometricToken;
     }
     
-    // If verified is false, show error
     setError(res.data?.message || 'Face verification failed');
     return null;
   } catch (err) {
     console.error('Face verification error:', err);
     
-    // Handle different error responses
     if (err.response?.data?.message) {
       setError(err.response.data.message);
-    } else if (err.response?.status === 401) {
-      setError('Face verification failed - Identity could not be confirmed');
-    } else if (err.response?.status === 400) {
-      setError('Face not registered or invalid face data');
     } else {
       setError('Face verification failed - please try again');
     }

@@ -186,7 +186,6 @@ router.post('/verify-face', auth, async (req, res) => {
       });
     }
 
-    // Basic sanity check – avoid blank/very tiny images
     if (faceData.length < 5000) {
       return res.status(400).json({
         verified: false,
@@ -197,27 +196,29 @@ router.post('/verify-face', auth, async (req, res) => {
     const isMatch = await compareFaces(faceData, user.faceData);
 
     if (!isMatch) {
-      return res.status(401).json({ 
+      return res.status(200).json({ 
         verified: false, 
         message: 'Face verification failed - Identity could not be confirmed' 
       });
     }
 
-    // short-lived biometric token (already good)
     const biometricToken = jwt.sign(
       { userId: user._id, type: 'face' },
       process.env.JWT_SECRET,
       { expiresIn: '2m' }
     );
 
-    return res.json({
+    return res.status(200).json({
       verified: true,
       message: 'Face verified successfully',
       biometricToken,
     });
   } catch (err) {
     console.error('FACE VERIFICATION ROUTE ERROR:', err);
-    return res.status(500).json({ message: 'Server error during verification' });
+    return res.status(500).json({ 
+      verified: false,
+      message: 'Server error during verification' 
+    });
   }
 });
 
